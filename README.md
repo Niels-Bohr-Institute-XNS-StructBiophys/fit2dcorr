@@ -1,11 +1,25 @@
 # fit2dcorr
-SAXS 2D > 1D data reduction software (wrapper for Fit2D software)
+SAXS 2D > 1D data reduction software (wrapper for Fit2D software):
 
+	Should run on most Linux distros and Windows.
+	Macintosh not tested yet, most probably only tiny code changes necessary.
 
+	Intended as an easy terminal interface for data reduction with Fit2D.
+	All images readable by Fit2D can be processed.
+	Especially useful for batch processing and when using tiff-files from Pilatus detector images from SAXSLAB cameras.
 
-Should run on most Linux distros and Windows.
+	Integration is based on Fit2D's standard SAXS / GISAXS -> INTEGRATE (av == 1) module or the more flexible SAXS / GISAXS -> CAKE -> INTEGRATE (av == 0) module.
+	For batch processing of large file sequences parallelization can be applied via OpenMP.
 
-Macintosh not tested yet, most probably only tiny code changes necessary.
+	Features:
+		Use of masks created in Fit2D
+		Absolute units calibration based on instrumental calibration factor, sample thickness, sample transmission and exposure time
+		Errorbars dI based on Poisson approach
+		Batch processing of image files
+		Subtraction of a background / buffer file from all sample files
+		Support for SAXSLAB's Pilatus tiffs and their xml entries to automatize processing through reading many parameters automatically, if provided in the tiff file
+		Azimuthally averaging within (partial) ring sectors (I vs Q) or radially averaging along (partial) ring profiles (I vs phi) via mode av == 0 (CAKE -> INTEGRATE)
+		Different scales for Q axis
 
 
 Included files:
@@ -43,6 +57,7 @@ Installation, using compiled executables:
 		cd fit2dcorr/
 
 	Download Fit2D executables from http://ftp.esrf.eu/pub/expg/FIT2D/ to ../fit2d/:
+	(note that both versions must be downloaded, the newer version 18 has a bug what affects the av == 0, for which the older version 12 must be used)
 
 		Linux:
 			fit2d_12_081_i686_linux2.4.20
