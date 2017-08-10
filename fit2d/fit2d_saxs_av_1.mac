@@ -1,0 +1,100 @@
+%!*\ History:
+%!*\ ------------------------
+%!*\ 20170718:
+%!*\ 
+%!*\ call arguments:
+%!*\ 
+%!*\ -key 		keyboard modus
+%!*\ <w>x<h> 		max array dimensions [pix x pix]
+%!*\ #SDD 		sample-detector distance [mm]
+%!*\ #LAMBDA 		wavelength [Angstroem] 
+%!*\ #BCX 		x-position of beam center [pix]
+%!*\ #BCY 		y-position of beam center [pix]
+%!*\ #PIXSZ_X 		pixelsize in x-direction [µm]
+%!*\ #PIXSZ_Y 		pixelsize in y-direction [µm]
+%!*\ #RAD_BINS 		number of bins for radial distance [integer]
+%!*\ #POL_FAC 		polarisation factor 
+%!*\ #FILE_IN 		input tif-file
+%!*\ #FILE_OUT 		output tif-file
+%!*\ #MASK 		mask-file
+%!*\ #CONSERVINT	conserve intensities YES (azi integration) / NO (azi averaging)
+%!*\ -mac 		macro-file 
+%!*\ 
+%!*\ call examples:
+%!*\ 
+%!*\ fit2d -key -dim512x512 -fvar#SDD=292.0 -fvar#LAMBDA=1.5418 -fvar#BCX=278.0 -fvar#BCY=91.0 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -ivar#RAD_BINS=230 -fvar#POL_FAC=0.99 -svar#FILE_IN=000870.tif -svar#FILE_OUT=000870.chi -fvar#MAX_2THETA=7.85 -svar#MASK=mask20110414.msk -svar#CONSERVINT=NO -macfit2d_saxs_av_1.mac
+%!*\ 
+%!*\ 
+%!*\ 
+%!*\ BEGINNING OF GUI MACRO FILE
+%!*\ 
+%!*\ 
+%!*\ 
+LIST VARIABLES
+GUI
+SAXS / GISAXS
+INPUT
+#FILE_IN
+O.K.
+Z-SCALING
+LOG SCALE
+EXIT
+MASK
+LOAD MASK
+#MASK
+EXIT
+INTEGRATE
+X-PIXEL SIZE
+#PIXSZ_X
+Y-PIXEL SIZE
+#PIXSZ_Y
+DISTANCE
+#SDD
+WAVELENGTH
+#LAMBDA
+X-BEAM CENTRE
+#BCX
+Y-BEAM CENTRE
+#BCY
+TILT ROTATION
+0.0
+ANGLE OF TILT
+0.0
+DETECTOR ROTATION
+0.0
+O.K.
+SCAN TYPE
+Q-SPACE
+CONSERVE INT.
+#CONSERVINT
+POLARISATION
+YES
+FACTOR
+#POL_FAC
+GEOMETRY COR.
+YES
+MAX. ANGLE
+#MAX_2THETA
+SCAN BINS
+#RAD_BINS
+MAX. D-SPACING
+20.00000
+SAVE PARAMETERS
+NO
+USE LOOK-UP TABLE
+YES
+CORRECT PARALLAX
+NO
+O.K.
+OUTPUT
+CHIPLOT
+FILE NAME
+#FILE_OUT
+O.K.
+EXCHANGE
+EXIT
+EXIT MENU
+QUIT
+YES
+YES
+%!*\ END OF IO MACRO FILE
