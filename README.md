@@ -32,10 +32,15 @@ Included files:
 
 	Makefile			Makefile (for Linux)
 	compile_fit2dcorr.sh		shell script calling Makefile (for Linux)
-	README				this README
+
+	README.md			this README.md
+	LICENSE				GNU General Public License v3.0
 
 	fit2d/fit2d_saxs_av_0.mac	Fit2D macro file
 	fit2d/fit2d_saxs_av_1.mac	Fit2D macro file
+	fit2d/<Fit2D executables>	Fit2D executables to be downloaded by user (see below)
+
+	test/winmingw_vs_linux/*	test files to compare results between Linux and Windows version
 
 
 Dependencies:
