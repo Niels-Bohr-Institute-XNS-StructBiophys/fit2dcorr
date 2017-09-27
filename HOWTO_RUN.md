@@ -1,3 +1,4 @@
+
 fit2dcorr -- usage
 
 
@@ -48,7 +49,8 @@ specifier with "-" are optionally, those with "+" are mandatory:
 							can be read automatically for SAXSLAB tifs if xml entry / tif-header is included
 							e.g. +pix_size auto
 
-	-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all images in filelist
+	-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in filelist
+							the subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)
 
 	-abs_units <cf d T t (d_b T_b t_b) >		absolute units calibration applied for all images in filelist
 							where: calibration factor cf [cps], sample thickness d [cm], Transmission T [0...1] and exposure time t [s]
@@ -109,7 +111,7 @@ specifier with "-" are optionally, those with "+" are mandatory:
 
 examples:
 
-	(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1) requiring a Q-scale in units of [1/nm]
+	(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1, err == 1) requesting a Q-scale in units of [1/nm]
 
 	    fit2dcorr +mask mask.msk +f test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 0.65 3600 -qscale Q_nm-1
 
@@ -120,6 +122,7 @@ examples:
 	(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,
 	    images are SAXSLAB data format, containing the data d T t lambda pix_size as xml entries, that are automatically read,
 	    integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,
+	    errorbars in subtracted file are computed by error propagation from the sample and background files,
 	    all non-positive data points will be skipped as well as the first 5 points,
 	    parallelization is used via OpenMP (depending on compilation and OS)
 
@@ -129,6 +132,17 @@ examples:
 	    normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read
 	    most parameters are read automatically, since they were written to the tiff-files during beamtime,
 	    integration shall be done in a ring sector (0-360 [deg], 100-140 [pix]) with 120 angular-bins (3 [deg] steps), what requires mode av == 0,
-	    rad_bins == 1 enforces intensity vs azimuthal angle
+	    rad_bins == 1 enforces intensity vs azimuthal angle,
+	    no errobars are calculated (err == 0)
 
-	    fit2dcorr -av 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1
+	    fit2dcorr -av 0 -err 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1
+
+
+compilation:
+
+	on Linux OS install package libtiff and call
+
+	./compile_fit2dcorr.sh g++ 3 NONE
+
+	to compile it with gcc/g++ with OpenMP support and optimization level 3, using the provided Makefile and compile_fit2dcorr.sh script
+
