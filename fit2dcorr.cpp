@@ -560,7 +560,8 @@ class fit2dcorr
 		fprintf( stdout, "\t\t\t\t\t\t\tcan be read automatically for SAXSLAB tifs if xml entry / tif-header is included\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +pix_size auto\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-subtract <file_b vol_fract_b>\t\t\toption to subtract a background file file_b scaled by volume fraction vol_fract_b from all images in filelist\n") ;
+		fprintf( stdout, "\t-subtract <file_b vol_fract_b>\t\t\toption to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in filelist\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\tthe subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-abs_units <cf d T t (d_b T_b t_b) >\t\tabsolute units calibration applied for all images in filelist\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\twhere: calibration factor cf [cps], sample thickness d [cm], Transmission T [0...1] and exposure time t [s]\n") ;
@@ -621,7 +622,7 @@ class fit2dcorr
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "examples:\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1) requiring a Q-scale in units of [1/nm]\n") ;
+		fprintf( stdout, "\t(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1, err == 1) requesting a Q-scale in units of [1/nm]\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t    fit2dcorr +mask mask.msk +f test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 0.65 3600 -qscale Q_nm-1\n") ;
 		fprintf( stdout, "\n") ;
@@ -632,6 +633,7 @@ class fit2dcorr
 		fprintf( stdout, "\t(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,\n") ;
 		fprintf( stdout, "\t    images are SAXSLAB data format, containing the data d T t lambda pix_size as xml entries, that are automatically read,\n") ;
 		fprintf( stdout, "\t    integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,\n") ;
+		fprintf( stdout, "\t    errorbars in subtracted file are computed by error propagation from the sample and background files,\n") ;
 		fprintf( stdout, "\t    all non-positive data points will be skipped as well as the first 5 points,\n") ;
 		fprintf( stdout, "\t    parallelization is used via OpenMP (depending on compilation and OS)\n") ;
 		fprintf( stdout, "\n") ;
@@ -641,9 +643,10 @@ class fit2dcorr
 		fprintf( stdout, "\t    normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read\n") ;
 		fprintf( stdout, "\t    most parameters are read automatically, since they were written to the tiff-files during beamtime,\n") ;
 		fprintf( stdout, "\t    integration shall be done in a ring sector (0-360 [deg], 100-140 [pix]) with 120 angular-bins (3 [deg] steps), what requires mode av == 0,\n") ;
-		fprintf( stdout, "\t    rad_bins == 1 enforces intensity vs azimuthal angle\n") ;
+		fprintf( stdout, "\t    rad_bins == 1 enforces intensity vs azimuthal angle,\n") ;
+		fprintf( stdout, "\t    no errobars are calculated (err == 0)\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t    fit2dcorr -av 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1\n") ;
+		fprintf( stdout, "\t    fit2dcorr -av 0 -err 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "compilation:\n") ;
@@ -2089,7 +2092,7 @@ class fit2dcorr
 			/* reset to default */
 			is_intensity_conserved = false ;
 
-			// in case of background subtraction, remove background file now from filelist, to avoid its processing as a sample file ! 
+			// in case of background subtraction, remove background file now from filelist, to avoid its processing as a sample file later !
 			if ( subtract_isdef ) { filelist.pop_back() ; fit2dfilelist.pop_back() ; fit2dcalllist.pop_back() ; }
 
 			/*
@@ -2859,7 +2862,7 @@ class fit2dcorr
 
 		double y[4] ;
 
-		unsigned int n, N ;
+		unsigned int n, N, N_del ; /* N - number of temporary chi-files to read, N_del - number of temporary chi-files to delete */
 		unsigned int i, j ;
 		unsigned int lineindex, writtenlineindex ;
 		bool line_isnegative ;
@@ -2889,7 +2892,7 @@ class fit2dcorr
 
 		   tests with serialized runs and parallelized runs (-openmp flag) give exactly the same results
 		*/
-		#pragma omp parallel private( filename, file, N, x_string, y, lineindex, writtenlineindex, line_isnegative, sdummy, strptr1, strptr2, data, n, j, strdummy ) shared( OPENMP_STDOUT ) default(none) if ( openmp_isdef )
+		#pragma omp parallel private( filename, file, N, N_del, x_string, y, lineindex, writtenlineindex, line_isnegative, sdummy, strptr1, strptr2, data, n, j, strdummy ) shared( OPENMP_STDOUT ) default(none) if ( openmp_isdef )
 		{
 			/* batch mode */
 			#pragma omp for schedule(static)
@@ -2898,18 +2901,20 @@ class fit2dcorr
 				/* filename handling */
 				strdummy = filelist[i].substr( 0, filelist[i].find(".") ) ;
 
+				/* define N and N_del depending on err and subtract_isdef */
 				N = 1 ;
 				/* write i-th *.chi file */
 				filename[0] = strdummy + ".chi" ;
+
 				/* read i-th *.chi_avg/tot-files */
 				filename[1] = strdummy + ".chi_avg" ;
 				if ( err == 0 )
 				{
-					if ( subtract_isdef )
+					if ( subtract_isdef ) // N == 2
 					{
-						N = N + 1 ; // N == 2
+						N = N + 1 ;
 						strdummy = file_b.substr( 0, file_b.find(".") ) ;
-						filename[2] = strdummy + ".chi_tot" ;
+						filename[2] = strdummy + ".chi_avg" ;
 					}
 					// else N == 1
 				}
@@ -2918,14 +2923,20 @@ class fit2dcorr
 					N = N + 1 ; // N == 2
 					filename[2] = strdummy + ".chi_tot" ;
 
-					if ( subtract_isdef )
+					if ( subtract_isdef ) // N == 4
 					{
-						N = N + 2 ; // N == 4
+						N = N + 2 ;
 						strdummy = file_b.substr( 0, file_b.find(".") ) ;
 						filename[3] = strdummy + ".chi_avg" ;
 						filename[4] = strdummy + ".chi_tot" ;
 					}
 				}
+
+				/* w/o subtraction N == N_del, otherwise it is half of it */
+				N_del = N ;
+				if ( subtract_isdef ) { N_del /= 2 ; }
+
+
 
 				for ( j=1; j<=N; ++j)
 				{
@@ -3009,7 +3020,7 @@ class fit2dcorr
 						errorbars
 						(weighted) background subtraction
 
-						skipping negative (<=0) lines if requested (in case of background subtraction skip lines where sample, background and differeence are <=0 )
+						skipping negative (<=0) lines if requested (in case of background subtraction skip lines where sample, background and difference are <=0 )
 						skipping user-defined lines if requested
 					 */
 
@@ -3099,15 +3110,14 @@ class fit2dcorr
 				}
 
 
-				/* close all files and remove the temporary ones */
-				fclose(file[0]) ;
+				/* close all N+1 files and - if not in verbose mode - remove temporary sample *.chi-files (remove background files (>N/2) in the last run) */
+				for ( j=0; j<=N; ++j) { fclose(file[j]) ; }
 
-				for ( j=1; j<=N; ++j)
+				if ( !verbose_isdef ) 
 				{
-					fclose(file[j]) ;
+					if ( ( i == filelist.size() - 1 ) && subtract_isdef ) { N_del *= 2 ; }
 
-					/* remove temporary *.chi-files */
-					if ( !verbose_isdef ) 
+					for ( j=1; j<=N_del; ++j)
 					{
 						if ( remove( filename[j].c_str() ) != 0 ) {fprintf( stdout, "Error: Could not delete file %s. Exit.\n", filename[j].c_str()) ; exit(1) ; }
 					}

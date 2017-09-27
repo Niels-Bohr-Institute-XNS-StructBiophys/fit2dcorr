@@ -16,10 +16,13 @@ SAXS 2D > 1D data reduction software (wrapper for Fit2D software):
 		Absolute units calibration based on instrumental calibration factor, sample thickness, sample transmission and exposure time
 		Errorbars dI based on Poisson approach
 		Batch processing of image files
-		Subtraction of a background / buffer file from all sample files
+		Subtraction of a background / buffer file from all sample files (subtraction is done on averaged data, not in 2D images)
 		Support for SAXSLAB's Pilatus tiffs and their xml entries to automatize processing through reading many parameters automatically, if provided in the tiff file
 		Azimuthally averaging within (partial) ring sectors (I vs Q) or radially averaging along (partial) ring profiles (I vs phi) via mode av == 0 (CAKE -> INTEGRATE)
 		Different scales for Q axis
+
+	How to use it:
+		after compiling / installing, run fit2dcorr executable (w/o any arguments) in the terminal to see required arguments, options and example calls
 
 
 Included files:
