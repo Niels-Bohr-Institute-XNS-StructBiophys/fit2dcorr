@@ -25,9 +25,11 @@ specifier with "-" are optionally, those with "+" are mandatory:
 							e.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14
 							     +seq 002367.tif 003689.tif 1 6
 							files in the sequence that don't exist will not be considered, a warning message will be posted
-	OR
+							it is possible to use multiple instances of +seq option and to use +seq in combination with +f
+
 	+f <file_1 ... file_n>				list of several tif-files, not necessarily with a run number scheme
 							e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
+							it is possible to use multiple instances of +f option and to use +f in combination with +seq
 
 	+bc <bc[0] bc[1]				beam center x-y-coordinates applied for all images in filelist [pix]
 							e.g. +bc 270.5 89.6

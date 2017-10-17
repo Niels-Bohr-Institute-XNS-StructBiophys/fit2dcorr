@@ -80,12 +80,15 @@ class fit2dcorr
 
 	string fit2dfile ; /* Fit2D executable file (full path) */
 
+	bool file_isdef ; /* +f */
 	vector<string> filelist ; /* filename list to be processed */
 	vector<string> fit2dfilelist ; /* list of latest Fit2D output files, av < 2 only */
  	vector<string> fit2dcalllist ; /* list of latest Fit2D calls, av < 2 only */
-	unsigned int seq_pos[2] ; 
-	bool seq_isdef ;   /* +seq */
-	bool file_isdef ;  /* +f */
+
+	bool seq_isdef ; /* +seq */
+	vector<string> seqfilelist ; /* list containing the pairs of filenames defining the sequences */
+	vector<unsigned int> seqposlist ; /* list containing pairs of starting and terminating numbers in the seqfilelist defining the sequence */
+
 
 	bool abs_units_isdef ;  /* -abs_units */
 	double cf ; /* calibration factor for a specific instrument setting */
@@ -308,8 +311,8 @@ class fit2dcorr
 	}
 
 
-	/* from +seq option the filelist is deduced */
-	/* if files do not exist in the sequnce they won't be included to filelist */
+	/* from +seq option(s) the filelist is deduced */
+	/* if files do not exist in the sequence they won't be included to filelist */
 	void deduce_filelist_from_sequence()
 	{
 		FILE* file ;
@@ -319,45 +322,48 @@ class fit2dcorr
 
 		string strdummy, filename ;
 
-		/* fill i_seq from filelist */
-		for ( unsigned int j=0; j<2; ++j)
+		/* loop over all defined sequences */
+		for ( unsigned int i=0; i < (seqposlist.size() / 2) ; ++i)
 		{
-			strdummy = filelist[j].substr( seq_pos[0] - 1, seq_pos[1] - seq_pos[0] + 1) ;
-			stringstream ss(strdummy) ;
-			if ( (ss >> i_seq[j]).fail() )
+			/* fill i_seq[] from seqfilelist */
+			for ( unsigned int j=0; j<2; ++j)
 			{
-				fprintf( stdout, "Error: Could not deduce start nummer from filelist[%u] %s. Exit.\n", j, filelist[j].c_str()) ; 
-				exit(1) ;
+				strdummy = seqfilelist[2*i+j].substr( seqposlist[2*i] - 1, seqposlist[2*i+1] - seqposlist[2*i] + 1) ;
+				stringstream ss(strdummy) ;
+				if ( (ss >> i_seq[j]).fail() )
+				{
+					fprintf( stdout, "Error: Could not deduce start or terminating number from seqfilelist[%u] %s. Exit.\n", 2*i+j, seqfilelist[2*i+j].c_str()) ; 
+					exit(1) ;
+				}
+			}
+
+			if ( i_seq[0] > i_seq[1] ) { fprintf( stdout, "Error: Start number (%u) must be less equal than the end number (%u) in the sequence. Exit.\n", i_seq[0], i_seq[1]) ; exit(1) ; }
+
+			strdummy = seqfilelist[2*i] ;
+			sprintf( sdummy, "%%0%uu", seqposlist[2*i+1] - seqposlist[2*i] + 1) ;
+
+			for ( unsigned int j=i_seq[0]; j<=i_seq[1]; ++j)
+			{
+				sprintf( data, sdummy, j) ;
+				filename = strdummy.replace( seqposlist[2*i] - 1, seqposlist[2*i+1] - seqposlist[2*i] + 1, string(data) ) ;
+
+				/* check if file exists */
+				if ( ( file = fopen( filename.c_str(), "r")) == NULL)
+				{
+					fprintf( stdout, "Warning: File %s in a defined file sequence is missing. Continue.\n", filename.c_str()) ;
+				}
+				fclose(file) ;
+
+				filelist.push_back( filename ) ;
 			}
 		}
 
-		if ( i_seq[0] > i_seq[1] ) { fprintf( stdout, "Error: Start number (%u) must be less equal than the end number (%u) in the sequence. Exit.\n", i_seq[0], i_seq[1]) ; exit(1) ; }
-
-		strdummy = filelist[0] ;
-
-		filelist.clear() ;
-		sprintf( sdummy, "%%0%uu", seq_pos[1] - seq_pos[0] + 1) ;
-		for ( unsigned int j=i_seq[0]; j<=i_seq[1]; ++j)
-		{
-			sprintf( data, sdummy, j) ;
-			filename = strdummy.replace( seq_pos[0]-1, seq_pos[1]-seq_pos[0]+1, string(data) ) ;
-
-			/* check if file exists */
-			if ( ( file = fopen( filename.c_str(), "r")) == NULL)
-			{
-				fprintf( stdout, "Warning: File %s in the defined file sequence is missing. Continue.\n", filename.c_str()) ;
-			}
-			fclose(file) ;
-
-			filelist.push_back( filename ) ;
-		}
-		/* if filelist is empty, terminate with an error */
+		/* if filelist is completely empty, terminate with an error */
 		if ( filelist.empty() )
 		{
-			fprintf( stdout, "Error: None of the files in the defined file sequence exists. Exit.\n") ;
+			fprintf( stdout, "Error: None of the files in the defined file sequences does exist. Exit.\n") ;
 			exit(1) ;
 		}
-
 	}
 
 
@@ -417,16 +423,17 @@ class fit2dcorr
 		+seq <first_file last_file min_pos max_pos>	sequence of input files with a fixed run number scheme between min_pos and max_pos
 								e.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14
 								     +seq 002367.tif 003689.tif 1 6
-								files in the sequence that don't exist will not be considered, a warning message will be posted 
-		OR
+								files in the sequence that don't exist will not be considered, a warning message will be posted
+								it is possible to use multiple instances of +seq option and to use +seq in combination with +f
+
 		+f <file_1 ... file_n>				list of several tif-files, not necessarily with a run number scheme
 								e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
-
+								it is possible to use multiple instances of +f option and to use +f in combination with +seq
 
 		+bc <bc[0] bc[1]>				beam center x-y-coordinates applied for all images in filelist [pix]
 								e.g. +bc 270.5 89.6
 								can be read automatically for SAXSLAB tifs if xml entry is included
-								e.g. +bc auto		
+								e.g. +bc auto
 
 		+sdd <sdd>					sample-detector-distance applied for all images in filelist [mm]
 								e.g. +sdd 290
@@ -536,9 +543,11 @@ class fit2dcorr
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     +seq 002367.tif 003689.tif 1 6\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tfiles in the sequence that don't exist will not be considered, a warning message will be posted\n") ;
-		fprintf( stdout, "\tOR\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\tit is possible to use multiple instances of +seq option and to use +seq in combination with +f\n") ;
+		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t+f <file_1 ... file_n>\t\t\t\tlist of several tif-files, not necessarily with a run number scheme\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. 002367.tiff 002345.tiff 1-a6.tif test.tif\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\tit is possible to use multiple instances of +f option and to use +f in combination with +seq\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t+bc <bc[0] bc[1]\t\t\t\tbeam center x-y-coordinates applied for all images in filelist [pix]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +bc 270.5 89.6\n") ;
@@ -1027,7 +1036,15 @@ class fit2dcorr
 							{
 								if ( *varg[i] != '-' && *varg[i] != '+' )
 								{
+									/* check if file exists annd add to filelist */
+									if ( ( file = fopen( varg[i], "r")) == NULL)
+									{
+										fprintf( stdout, "Error: File %s in a +f option does not exit. Exit.\n", varg[i]) ;
+									}
+									fclose(file) ;
+
 									filelist.push_back( (string)varg[i] ) ;
+
 									file_isdef = true ;
 								}
 								else
@@ -1159,7 +1176,16 @@ class fit2dcorr
 						{
 							if ( ++i<carg )
 							{
+								/* check if maskfile exists */
+								if ( ( file = fopen( varg[i], "r")) == NULL)
+								{
+									fprintf( stdout, "Error: Cannot read maskfile %s. File does not exist. Exit.\n", varg[i]) ;
+									exit(1) ;
+								}
+								fclose(file) ;
+
 								maskfile = (string)varg[i] ;
+
 								mask_isdef = true ;
 							}
 							else { fit2dcorr_error(1) ; }
@@ -1289,7 +1315,7 @@ class fit2dcorr
 								{
 									if ( *varg[i] != '-' && *varg[i] != '+' )
 									{
-										filelist.push_back( (string)varg[i] ) ;
+										seqfilelist.push_back( (string)varg[i] ) ;
 									}
 									else
 									{
@@ -1304,7 +1330,7 @@ class fit2dcorr
 							{
 								if ( ++i<carg )
 								{
-									if ( is_numeric(varg[i]) ) { seq_pos[j] = (unsigned int)strtol( varg[i], NULL, 10) ; }
+									if ( is_numeric(varg[i]) ) { seqposlist.push_back( (unsigned int)strtol( varg[i], NULL, 10) ) ; }
 									else { fit2dcorr_error(2) ; }
 								}
 								else { fit2dcorr_error(1) ; }
@@ -1527,26 +1553,9 @@ class fit2dcorr
 		if ( ! ( bc_isdef || bc_isauto ) || ! ( sdd_isdef || sdd_isauto ) || ! ( lambda_isdef || lambda_isauto ) || ! ( pix_size_isdef || pix_size_isauto ) || !mask_isdef || ! ( seq_isdef || file_isdef ) ) { fit2dcorr_error(6) ; }
 
 
-
-		/* file input method compatibility check */
-		if ( seq_isdef && file_isdef )
-		{ 
-			fprintf( stdout, "Error: arguments +f and +seq for input files cannot be used concurrently. Exit.\n") ;
-			exit(1) ;
-		}
-
-		/* derive filenames from a given sequence, defines filelist, file existence is checked, missing files are omitted */
-		/* note that for +f option no file existence check is applied here */
+		/* in case of a +seq option derive filenames from the given sequence(s) and add filenames to filelist */
+		/* file existence is checked, missing files are omitted (warning message is shown) */
 		if ( seq_isdef ) { deduce_filelist_from_sequence() ; }
-
-		/* check if maskfile exists in the current working_directory */
-		if ( ( file = fopen( maskfile.c_str(), "r")) == NULL)
-		{
-			fprintf( stdout, "Error: Cannot read maskfile %s. File does not exist. Exit.\n", maskfile.c_str()) ;
-			exit(1) ;
-		}
-		fclose(file) ;
-
 
 
 
@@ -1622,7 +1631,22 @@ class fit2dcorr
 
 
 
-
+		/* print filelist and some common parameters that apply for all files */
+		fprintf( stdout, "\n") ;
+		fprintf( stdout, "summary of some input arguments:\n") ;
+		fprintf( stdout, "\n") ;
+		fprintf( stdout, "\tfiles:\n") ;
+		for ( unsigned int i=0; i<filelist.size(); ++i)
+		{
+			fprintf( stdout, "\t%s\n", filelist[i].c_str()) ;
+		}
+		fprintf( stdout, "\n") ;
+		fprintf( stdout, "\tmask=%s\n", maskfile.c_str()) ;
+		fprintf( stdout, "\tbc=(%-.1lf, %-.1lf) [pix]\n", bc[0], bc[1]) ;
+		fprintf( stdout, "\tsdd=%-.1lf [mm]\n", sdd) ;
+		fprintf( stdout, "\tlambda=%-.4lf [Angstroem]\n", lambda) ;
+		fprintf( stdout, "\tpix_size=%-.1lf x %-.1lf [microns x microns]\n", pix_size[0], pix_size[1]) ;
+		fprintf( stdout, "\n") ;
 
 
 
@@ -1638,6 +1662,7 @@ class fit2dcorr
 			fprintf( stdout, "Error: valid arguments for -qscale option are: Q_nm-1 (default), Q_A-1, s_nm-1, s_A-1. Exit.\n") ;
 			exit(1) ;
 		}
+
 
 
 		/* 
@@ -2177,11 +2202,11 @@ class fit2dcorr
 			if ( omp_in_parallel() )
 			{
 				#pragma omp single
-				fprintf( stdout ,"%sParallelized Run: #-CPU=%d, #-Threads=%d\n", "\t", omp_get_num_procs(), omp_get_num_threads() ) ;
+				fprintf( stdout ,"Parallelized Run: #-CPU=%d, #-Threads=%d\n", omp_get_num_procs(), omp_get_num_threads() ) ;
 			}
 			else
 			{
-				fprintf( stdout ,"%sSerialized Run\n", "\t") ;
+				fprintf( stdout ,"Serialized Run\n") ;
 			}
 		}
 
@@ -2262,11 +2287,11 @@ class fit2dcorr
 			if ( omp_in_parallel() )
 			{
 				#pragma omp single
-				fprintf( stdout ,"%sParallelized Run: #-CPU=%d, #-Threads=%d\n", "\t", omp_get_num_procs(), omp_get_num_threads() ) ;
+				fprintf( stdout ,"Parallelized Run: #-CPU=%d, #-Threads=%d\n", omp_get_num_procs(), omp_get_num_threads() ) ;
 			}
 			else
 			{
-				fprintf( stdout ,"%sSerialized Run\n", "\t") ;
+				fprintf( stdout ,"Serialized Run\n") ;
 			}
 		}
 
@@ -2556,11 +2581,11 @@ class fit2dcorr
 			if ( omp_in_parallel() )
 			{
 				#pragma omp single
-				fprintf( stdout ,"%sParallelized Run: #-CPU=%d, #-Threads=%d\n", "\t", omp_get_num_procs(), omp_get_num_threads() ) ;
+				fprintf( stdout ,"Parallelized Run: #-CPU=%d, #-Threads=%d\n", omp_get_num_procs(), omp_get_num_threads() ) ;
 			}
 			else
 			{
-				fprintf( stdout ,"%sSerialized Run\n", "\t") ;
+				fprintf( stdout ,"Serialized Run\n") ;
 			}
 		}
 
@@ -2874,11 +2899,11 @@ class fit2dcorr
 			if ( omp_in_parallel() )
 			{
 				#pragma omp single
-				fprintf( stdout ,"%sParallelized Run: #-CPU=%d, #-Threads=%d\n", "\t", omp_get_num_procs(), omp_get_num_threads() ) ;
+				fprintf( stdout ,"Parallelized Run: #-CPU=%d, #-Threads=%d\n", omp_get_num_procs(), omp_get_num_threads() ) ;
 			}
 			else
 			{
-				fprintf( stdout ,"%sSerialized Run\n", "\t") ;
+				fprintf( stdout ,"Serialized Run\n") ;
 			}
 		}
 
