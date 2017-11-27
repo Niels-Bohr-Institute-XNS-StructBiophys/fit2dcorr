@@ -2,7 +2,7 @@
 fit2dcorr -- usage
 
 
-specifier with "-" are optionally, those with "+" are mandatory:
+specifiers with "-" are optionally, those with "+" are mandatory:
 
 
 	-av <av>					average mode:
@@ -18,7 +18,7 @@ specifier with "-" are optionally, those with "+" are mandatory:
 							1 -> Poisson-style (default)
 
 
-	+mask <maskfile>				apply mask from Fit2D maskfile to all images in filelist
+	+mask <maskfile>				apply mask from Fit2D maskfile to all images in file_list
 							e.g. -mask 300k_20Hz.msk
 
 	+seq <first_file last_file min_pos max_pos>	sequence of input files with a fixed run number scheme between min_pos and max_pos
@@ -31,71 +31,83 @@ specifier with "-" are optionally, those with "+" are mandatory:
 							e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
 							it is possible to use multiple instances of +f option and to use +f in combination with +seq
 
-	+bc <bc[0] bc[1]				beam center x-y-coordinates applied for all images in filelist [pix]
+	+bc <bc[0] bc[1]				beam center y and z coordinates applied for all images in file_list [pix]
 							e.g. +bc 270.5 89.6
-							can be read automatically for SAXSLAB tifs if xml entry is included
+							with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: beamcenter_actual
 							e.g. +bc auto
 
-	+sdd <sdd>					sample-detector-distance applied for all images in filelist [mm]
+	+sdd <sdd>					sample-detector-distance applied for all images in file_list [mm]
 							e.g. +sdd 290
-							can be read automatically for SAXSLAB tifs if xml entry is included
+							with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: detector_dist
 							e.g. +sdd auto
 
-	+lambda <lambda>				wavelength applied for all images in filelist [Angstroem]
+	+lambda <lambda>				wavelength applied for all images in file_list [Angstroem]
 							e.g. +lambda 1.5418
-							can be read automatically for SAXSLAB tifs if xml entry is included
+							with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: wavelength
 							e.g. +lambda auto
 
-	+pix_size <pixsz_x pixsz_y>			pixel sizes of detector applied for all images in filelist [microns]
+	+pix_size <pixsz_y pixsz_z>			pixel sizes of detector applied for all images in file_list [microns]
 							e.g. +pix_size 172 172
-							can be read automatically for SAXSLAB tifs if xml entry / tif-header is included
+							with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: pix_size
+							with auto argument, for PILATUS tifs it will be automatically read from each file (via # Pixel_size)
 							e.g. +pix_size auto
 
-	-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in filelist
+	-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in file_list
 							the subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)
 
-	-abs_units <cf d T t (d_b T_b t_b) >		absolute units calibration applied for all images in filelist
-							where: calibration factor cf [cps], sample thickness d [cm], Transmission T [0...1] and exposure time t [s]
-							d, T, and t can be read automatically for SAXSLAB tifs if xml entries are included
+	-abs_units <cf d T t (cf_b d_b T_b t_b)>	absolute units calibration applied for all images in file_list
+							where:
+							     cf (cf_b) - sample (background) calibration factor [1/cps]
+							     d (d_b) - sample (background) thickness [cm]
+							     T (T_b) - sample (background) transmission [0...1]
+							     t (t_b) - sample (background) exposure time [s]
+							with auto argument, for SAXSLAB tifs cf will be automatically calculated (with pix_size and sdd) from each file if the xml entry is set: saxsconf_Izero
+							with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_thickness
+							with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_transfact)
+							with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: det_exposure_time
+							with auto argument, for PILATUS tifs t will be automatically read from each file (via # Exposure_time)
 							e.g. -abs_units 0.7 0.1 0.2456 3600
 							     -abs_units 0.7 auto auto auto
 							     -abs_units 0.7 auto 0.1 auto
 							     -abs_units 0.7 0.1 0.2456 auto
-							if -subtract option is used also d_b, T_b and t_b for the background file must be appended !
-							e.g. -abs_units 0.7 auto auto auto auto auto auto
-							     -abs_units 0.7 0.1 0.234 auto 0.1 0.221 auto
+							     -abs_units auto auto auto auto
+							if -subtract option is used also cf_b, d_b, T_b and t_b for the background file must be appended !
+							e.g. -abs_units 0.72 auto auto auto 0.69 auto auto auto
+							     -abs_units 0.72 0.1 0.234 auto 0.69 0.1 0.221 auto
+							     -abs_units auto 0.15 auto auto auto 0.15 auto auto
+							     -abs_units auto auto auto auto auto auto auto auto
 
 	-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
 
 	-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
-							CSV lists and / or range specifications possible
+							comma separated lists and / or range specifications possible
 							e.g. -l 1:1:3
 							     -l 3,4,5,6,235,236
 							     -l 2:3:14
 							     -l 3,4,5,6,235,236 -l 100:1:121
 							note that other options like -nonnegative (considered first when writing output) might affect line numbers too!
 
-	-rad_st <rad_st>				start inner radius for radial distance [pix] applied for all images in filelist
+	-rad_st <rad_st>				start inner radius for radial distance [pix] applied for all images in file_list
 							default is 0.0 [pix], for modes av == 0 & 2 only
 
-	-rad_end <rad_end>				end outer radius for radial distance [pix] applied for all images in filelist
+	-rad_end <rad_end>				end outer radius for radial distance [pix] applied for all images in file_list
 							will be automatically calculated by default from the most distant corner of the image with respect to the bc
 	OR
-	-max_2theta <max_2theta>			maximum 2theta angle applied for all images in filelist
+	-max_2theta <max_2theta>			maximum 2theta angle applied for all images in file_list
 							will be automatically calculated by default from the most distant corner of the image with respect to the bc
 
-	-rad_bins <rad_bins>				number of radial bins [integer] applied for all images in filelist
+	-rad_bins <rad_bins>				number of radial bins [integer] applied for all images in file_list
 							will be automatically calculated by default from the most distant corner of the image to the bc and the pix_size
 							for -av 0 and -rad_bins 1 the azimuthal intensity is exported as chi file for a (partial) ring / sector that,
 							is defined by rad_st, rad_end (or max_2theta), azi_st, azi_end and azi_bins
 
-	-azi_st <azi_st>				start azimuthal angle [deg] applied for all images in filelist
+	-azi_st <azi_st>				start azimuthal angle [deg] applied for all images in file_list
 							default is 0.0 [deg], for modes av == 0 & 2 only
 
-	-azi_end <azi_end>				end azimuthal angle [deg] applied for all images in filelist
+	-azi_end <azi_end>				end azimuthal angle [deg] applied for all images in file_list
 							default is 360.0 [deg], for modes av == 0 & 2 only
 
-	-azi_bins <azi_bins>				number of azimuthal bins [integer] applied for all images in filelist
+	-azi_bins <azi_bins>				number of azimuthal bins [integer] applied for all images in file_list
 							by default will be computed from azi_st and azi_end in 1 [deg] steps, for modes av == 0 & 2 only
 
 	-pol_fac <pol_fac>				polarisation factor
@@ -122,13 +134,13 @@ examples:
 	    fit2dcorr +mask mask.msk +f file_1.tiff file_2.tiff test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 auto auto
 
 	(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,
-	    images are SAXSLAB data format, containing the data d T t lambda pix_size as xml entries, that are automatically read,
+	    images are SAXSLAB data format, containing the data I0 d T t lambda pix_size as xml entries, that are automatically read,
 	    integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,
 	    errorbars in subtracted file are computed by error propagation from the sample and background files,
 	    all non-positive data points will be skipped as well as the first 5 points,
 	    parallelization is used via OpenMP (depending on compilation and OS)
 
-	    fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units 23.4 auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp
+	    fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units auto auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp
 
 	(4) data reduction of a list of SAXSLAB tiff-files to extract the scattered intensity along a Debye-Scherrer ring sector,
 	    normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read

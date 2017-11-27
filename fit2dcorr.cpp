@@ -81,42 +81,43 @@ class fit2dcorr
 	string fit2dfile ; /* Fit2D executable file (full path) */
 
 	bool file_isdef ; /* +f */
-	vector<string> filelist ; /* filename list to be processed */
-	vector<string> fit2dfilelist ; /* list of latest Fit2D output files, av < 2 only */
- 	vector<string> fit2dcalllist ; /* list of latest Fit2D calls, av < 2 only */
+	vector<string> file_list ; /* filename list to be processed */
+	vector<string> fit2dfile_list ; /* list of latest Fit2D output files, av < 2 only */
+ 	vector<string> fit2dcall_list ; /* list of latest Fit2D calls, av < 2 only */
 
 	bool seq_isdef ; /* +seq */
-	vector<string> seqfilelist ; /* list containing the pairs of filenames defining the sequences */
-	vector<unsigned int> seqposlist ; /* list containing pairs of starting and terminating numbers in the seqfilelist defining the sequence */
+	vector<string> seqfile_list ; /* list containing the pairs of filenames defining the sequences */
+	vector<unsigned int> seqpos_list ; /* list containing pairs of starting and terminating numbers in the seqfile_list defining the sequence */
 
-
-	bool abs_units_isdef ;  /* -abs_units */
-	double cf ; /* calibration factor for a specific instrument setting */
-	bool thickness_isdef, transmission_isdef, exptime_isdef ;
-	double thickness_def, transmission_def, exptime_def ;
-	vector<double> thicknesslist ; /* list of thicknesses */
-	vector<double> transmissionlist ; /* list of transmissions */
-	vector<double> exptimelist ; /* list of exptimes */
+	/* using a calibration factor for a specific instrument setting; sample thickness, transmission and exposure time */
+	bool abs_units_isdef ;  /* -abs_units */ 
+	bool cf_isauto, thickness_isauto, transmission_isauto, exptime_isauto ; /* flags if parameters have have been set */
+	double cf_def, thickness_def, transmission_def, exptime_def ; /* values used for all files */
+	vector<double> cf_list ; /* list of calibration factors [1/cps] */
+	vector<double> thickness_list ; /* list of thicknesses [cm] */
+	vector<double> transmission_list ; /* list of transmissions */
+	vector<double> exptime_list ; /* list of exptimes [t] */
+	vector<int> phi0_list ; /* list of flux [cps] */
 
 	bool subtract_isdef ; /* -subtract */
 	string file_b ; /* background file */
 	double vol_fract_b ;
-	bool thickness_b_isdef, transmission_b_isdef, exptime_b_isdef ;
-	double thickness_b_def, transmission_b_def, exptime_b_def ;
-	double thickness_b, transmission_b, exptime_b ;
-	
+	bool cf_b_isauto, thickness_b_isauto, transmission_b_isauto, exptime_b_isauto ;
+	double cf_b_def, thickness_b_def, transmission_b_def, exptime_b_def ;
+	double cf_b, thickness_b, transmission_b, exptime_b ;
+	int phi0_b ;
+
 	double sdd ; /* sample-to-detector distance */
 	bool sdd_isdef, sdd_isauto ; /* +sdd */
-
-	double max_2theta, min_2theta ; /* maximum and minimum theta angle for Q-range */
-	bool max_2theta_isdef ; /* -max_2theta */
-	double max_Q, min_Q ;
 
 	double bc[2] ; /* x,y pixel coordinates for the beam center */
 	bool bc_isdef, bc_isauto ; /* +bc */
 
 	double lambda ; /* wavelength in Angstroem */
 	bool lambda_isdef, lambda_isauto ; /* +lambda */
+
+	double pix_size[2] ; /* pixel geometry */
+	bool pix_size_isdef, pix_size_isauto ; /* +pix_size */
 
 	string x_scale, x_scale_def ;
 	double x_scale_fac, x_scale_fac_def ;
@@ -133,6 +134,16 @@ class fit2dcorr
 
 	bool is_intensity_conserved ;
 
+
+	unsigned int array_size[2] ;
+	unsigned int image_size[2] ;
+
+	double pix_x_r_out, pix_y_r_out ;
+
+	double max_2theta, min_2theta ; /* maximum and minimum theta angle for Q-range */
+	bool max_2theta_isdef ; /* -max_2theta */
+	double max_Q, min_Q ;
+
 	double azi_st, azi_st_def ;
 	double azi_end, azi_end_def ;
 	unsigned int azi_bins ;
@@ -144,15 +155,6 @@ class fit2dcorr
 	double rad_st, rad_st_def, rad_end, rad_max ;
 	unsigned int rad_bins ;
 	bool rad_st_isdef, rad_end_isdef, rad_bins_isdef ;
-
-	unsigned int array_size[2] ;
-	unsigned int image_size[2] ;
-
-	double pix_x_r_out, pix_y_r_out ;
-
-	double pix_size[2] ; /* pixel geometry */
-	bool pix_size_isdef, pix_size_isauto ; /* +pix_size */
-
 	double pol_fac, pol_fac_def ; /* -pol_fac polarisation factor */
 
 	bool openmp_isdef ; /* -openmp */
@@ -194,68 +196,108 @@ class fit2dcorr
  	}
 
 
-	/* get sample (and background) thicknesses d, transmissions T and exptimes t from Pilatus/SAXSLAB xml tif-files or from user input */
-	void get_d_T_t()
+	/* get sample (and background) thicknesses d, transmissions T and exptimes t from PILATUS/SAXSLAB xml tif-files or from user input */
+	void get_cf_d_T_t()
 	{
 		string str ;
 		bool interupt_isdef = false ;
 
-		for ( unsigned int i=0; i<filelist.size(); ++i)
+		for ( unsigned int i=0; i<file_list.size(); ++i)
 		{
-			if ( thickness_isdef ) { thicknesslist.push_back( thickness_def ) ; }
-			else
+			if ( cf_isauto )
 			{
-				str = read_xml_entry_from_tif( filelist[i], "sample_thickness") ;
+				str = read_xml_entry_from_tif( file_list[i], "saxsconf_Izero") ;
 				if ( str.length() == 0 )
 				{
-					fprintf( OPENMP_STDOUT, "Warning: No thickness found from xml entries in file %s.\n", filelist[i].c_str() ) ;
-					thicknesslist.push_back( 0.0 ) ;
+					fprintf( OPENMP_STDOUT, "Warning: No I0 flux found from xml entries in SAXSLAB tif file %s.\n", file_list[i].c_str() ) ;
+					cf_list.push_back( 0.0 ) ;
+
 					interupt_isdef = true ;
 				}
 				else
 				{
-					thicknesslist.push_back( strtod( str.c_str(), NULL ) ) ;
+					/* scale flux with solid angle to obtain cf = sdd^2 / I0 / pix_area [1/cps]  */
+					phi0_list.push_back( (int) strtol( str.c_str(), NULL, 10 ) ) ;
+					cf_list.push_back( 1.0e6 * ( sdd * sdd ) / (double) phi0_list[i] / ( pix_size[0] * pix_size[1] ) ) ;
 				}
 			}
+			else { cf_list.push_back( cf_def ) ; }
 
-			if ( transmission_isdef ) { transmissionlist.push_back( transmission_def ) ; }
-			else
+			if ( thickness_isauto )
 			{
-				str = read_xml_entry_from_tif( filelist[i], "sample_transfact") ;
+				str = read_xml_entry_from_tif( file_list[i], "sample_thickness") ;
 				if ( str.length() == 0 )
 				{
-					fprintf( OPENMP_STDOUT, "Warning: No transmission found from xml entries in file %s.\n", filelist[i].c_str() ) ;
-					transmissionlist.push_back( 0.0 ) ;
+					fprintf( OPENMP_STDOUT, "Warning: No thickness found from xml entries in SAXSLAB tif file %s.\n", file_list[i].c_str() ) ;
+					thickness_list.push_back( 0.0 ) ;
 					interupt_isdef = true ;
 				}
 				else
 				{
-					transmissionlist.push_back( strtod( str.c_str(), NULL ) ) ;
+					thickness_list.push_back( strtod( str.c_str(), NULL ) ) ;
 				}
 			}
+			else { thickness_list.push_back( thickness_def ) ; }
 
-			if ( exptime_isdef ) { exptimelist.push_back( exptime_def ) ; }
-			else
+
+			if ( transmission_isauto )
 			{
-				str = read_xml_entry_from_tif( filelist[i], "det_exposure_time") ;
-				if ( str.length() != 0 ) { exptimelist.push_back( strtod( str.c_str(), NULL) ) ; }
+				str = read_xml_entry_from_tif( file_list[i], "sample_transfact") ;
+				if ( str.length() == 0 )
+				{
+					fprintf( OPENMP_STDOUT, "Warning: No transmission found from xml entries SAXSLAB tif in file %s.\n", file_list[i].c_str() ) ;
+					transmission_list.push_back( 0.0 ) ;
+					interupt_isdef = true ;
+				}
 				else
 				{
-					fprintf( OPENMP_STDOUT, "Read exptime for file %s from Pilatus header.\n", filelist[i].c_str() ) ;
-					exptimelist.push_back( get_exposure_time_from_tif( filelist[i]) ) ;
+					transmission_list.push_back( strtod( str.c_str(), NULL ) ) ;
 				}
 			}
+			else { transmission_list.push_back( transmission_def ) ; }
+
+			if ( exptime_isauto )
+			{
+				str = read_xml_entry_from_tif( file_list[i], "det_exposure_time") ;
+				if ( str.length() != 0 ) { exptime_list.push_back( strtod( str.c_str(), NULL) ) ; }
+				else // fallback to PILATUS header
+				{
+					fprintf( OPENMP_STDOUT, "Could not read exptime from SAXSLAB header in file %s, try to read it from PILATUS header instead.\n", file_list[i].c_str() ) ;
+					exptime_list.push_back( get_exposure_time_from_PILATUS_tif( file_list[i]) ) ;
+				}
+			}
+			else { exptime_list.push_back( exptime_def ) ; }
+
 		}
 
 		if ( subtract_isdef )
 		{
-			if ( thickness_b_isdef ) { thickness_b = thickness_b_def ; }
-			else
+			if ( cf_b_isauto )
+			{
+				str = read_xml_entry_from_tif( file_b, "saxsconf_Izero") ;
+				if ( str.length() == 0 )
+				{
+					fprintf( OPENMP_STDOUT, "Warning: No I0 flux found from xml entries in SAXSLAB tif background file %s.\n", file_b.c_str() ) ;
+					phi0_b = -1 ;
+					cf_b = 0.0 ;
+					interupt_isdef = true ;
+				}
+				else
+				{
+					/* scale flux with solid angle to obtain cf = sdd^2 / I0 / pix_area [1/cps]  */
+					phi0_b = (int) strtol( str.c_str(), NULL, 10 ) ;
+					cf_b = 1.0e6 * ( sdd * sdd ) / (double) phi0_b / ( pix_size[0] * pix_size[1] ) ;
+				}
+			}
+			else { cf_b = cf_b_def ; }
+
+
+			if ( thickness_b_isauto )
 			{
 				str = read_xml_entry_from_tif( file_b, "sample_thickness") ;
 				if ( str.length() == 0 )
 				{
-					fprintf( OPENMP_STDOUT, "Warning: No thickness found from xml entries in background file %s.\n", file_b.c_str() ) ;
+					fprintf( OPENMP_STDOUT, "Warning: No thickness found from xml entries in SAXSLAB tif background file %s.\n", file_b.c_str() ) ;
 					thickness_b = 0.0 ;
 					interupt_isdef = true ;
 				}
@@ -264,14 +306,14 @@ class fit2dcorr
 					thickness_b = strtod( str.c_str(), NULL) ;
 				}
 			}
+			else { thickness_b = thickness_b_def ; }
 
-			if ( transmission_b_isdef ) { transmission_b = transmission_b_def ; }
-			else
+			if ( transmission_b_isauto )
 			{
 				str = read_xml_entry_from_tif( file_b, "sample_transfact") ;
 				if ( str.length() == 0 )
 				{
-					fprintf( OPENMP_STDOUT, "Warning: No transmission found from xml entries in background file %s.\n", file_b.c_str() ) ;
+					fprintf( OPENMP_STDOUT, "Warning: No transmission found from xml entries in SAXSLAB tif background file %s.\n", file_b.c_str() ) ;
 					transmission_b = 0.0 ;
 					interupt_isdef = true ;
 				}
@@ -280,18 +322,19 @@ class fit2dcorr
 					transmission_b = strtod( str.c_str(), NULL) ;
 				}
 			}
+			else { transmission_b = transmission_b_def ; }
 
-			if ( exptime_b_isdef ) { exptime_b = exptime_b_def ; }
-			else
+			if ( exptime_b_isauto )
 			{
 				str = read_xml_entry_from_tif( file_b, "det_exposure_time") ;
 				if ( str.length() != 0 ) { exptime_b = strtod( str.c_str(), NULL) ; }
-				else
+				else // fallback to PILATUS header
 				{
-					fprintf( OPENMP_STDOUT, "Read exptime for background file %s from Pilatus header.\n", file_b.c_str() ) ;
-					exptime_b = get_exposure_time_from_tif( file_b) ;
+					fprintf( OPENMP_STDOUT, "Read exptime for background file %s from PILATUS header.\n", file_b.c_str() ) ;
+					exptime_b = get_exposure_time_from_PILATUS_tif( file_b) ;
 				}
 			}
+			else { exptime_b = exptime_b_def ; }
 		}
 		
 		string decision ;
@@ -311,9 +354,9 @@ class fit2dcorr
 	}
 
 
-	/* from +seq option(s) the filelist is deduced */
-	/* if files do not exist in the sequence they won't be included to filelist */
-	void deduce_filelist_from_sequence()
+	/* from +seq option(s) the file_list is deduced */
+	/* if files do not exist in the sequence they won't be included to file_list */
+	void deduce_file_list_from_sequence()
 	{
 		FILE* file ;
 		char data[defsigns] ;
@@ -323,29 +366,29 @@ class fit2dcorr
 		string strdummy, filename ;
 
 		/* loop over all defined sequences */
-		for ( unsigned int i=0; i < (seqposlist.size() / 2) ; ++i)
+		for ( unsigned int i=0; i < (seqpos_list.size() / 2) ; ++i)
 		{
-			/* fill i_seq[] from seqfilelist */
+			/* fill i_seq from seqfile_list */
 			for ( unsigned int j=0; j<2; ++j)
 			{
-				strdummy = seqfilelist[2*i+j].substr( seqposlist[2*i] - 1, seqposlist[2*i+1] - seqposlist[2*i] + 1) ;
+				strdummy = seqfile_list[2*i+j].substr( seqpos_list[2*i] - 1, seqpos_list[2*i+1] - seqpos_list[2*i] + 1) ;
 				stringstream ss(strdummy) ;
 				if ( (ss >> i_seq[j]).fail() )
 				{
-					fprintf( stdout, "Error: Could not deduce start or terminating number from seqfilelist[%u] %s. Exit.\n", 2*i+j, seqfilelist[2*i+j].c_str()) ; 
+					fprintf( stdout, "Error: Could not deduce start or terminating number from seqfile_list[%u] %s. Exit.\n", 2*i+j, seqfile_list[2*i+j].c_str()) ; 
 					exit(1) ;
 				}
 			}
 
 			if ( i_seq[0] > i_seq[1] ) { fprintf( stdout, "Error: Start number (%u) must be less equal than the end number (%u) in the sequence. Exit.\n", i_seq[0], i_seq[1]) ; exit(1) ; }
 
-			strdummy = seqfilelist[2*i] ;
-			sprintf( sdummy, "%%0%uu", seqposlist[2*i+1] - seqposlist[2*i] + 1) ;
+			strdummy = seqfile_list[2*i] ;
+			sprintf( sdummy, "%%0%uu", seqpos_list[2*i+1] - seqpos_list[2*i] + 1) ;
 
 			for ( unsigned int j=i_seq[0]; j<=i_seq[1]; ++j)
 			{
 				sprintf( data, sdummy, j) ;
-				filename = strdummy.replace( seqposlist[2*i] - 1, seqposlist[2*i+1] - seqposlist[2*i] + 1, string(data) ) ;
+				filename = strdummy.replace( seqpos_list[2*i] - 1, seqpos_list[2*i+1] - seqpos_list[2*i] + 1, string(data) ) ;
 
 				/* check if file exists */
 				if ( ( file = fopen( filename.c_str(), "r")) == NULL)
@@ -354,12 +397,12 @@ class fit2dcorr
 				}
 				fclose(file) ;
 
-				filelist.push_back( filename ) ;
+				file_list.push_back( filename ) ;
 			}
 		}
 
-		/* if filelist is completely empty, terminate with an error */
-		if ( filelist.empty() )
+		/* if file_list is completely empty, terminate with an error */
+		if ( file_list.empty() )
 		{
 			fprintf( stdout, "Error: None of the files in the defined file sequences does exist. Exit.\n") ;
 			exit(1) ;
@@ -389,138 +432,177 @@ class fit2dcorr
 		   -> better don't use MSVC ...
 		*/
 
+		/*  copy of usage from terminal */
 		/*
-		Specifier with "-" are optionally, those with "+" are mandatory 
-
-		-av <av>					average mode:
-							 	0 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars
-								     uses CAKE -> INTEGRATE module
-								     allows more flexibility with regard to azimuthal and radial range
-								     (using menu Powder Diffraction 2D would be possible too)
-								1 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars (default)
-								     uses standard INTEGRATE module
-								2 -> azimuthal averaging without Fit2D, without / with errorbars (not implemented yet)
+		fit2dcorr -- usage
 
 
-		-err <err>					errorbar mode:
-							 	0 -> no error bars (produces -1 numbers in 3rd column)
-								1 -> Poisson-style (default),
-								     sigma = dI = sqrt( <I> / N_bins ) for av == 1 using 2 Fit2D calls with intensity conservation YES and NO
-
-								errorbar implementation should be independent of azi_bins, this can be fulfilled if the errorbar either depends on the sum(I) or the mean(I) of a ring
-
-								using azimuthal maps in Fit2D only the information on the mean(I) (no intensity conservation) or on sum(I) (yes intensity conservation) is preserved, information on individual pixels and thus statistics is lost in the azimuthal mapping procedure !
-
-								thus with Fit2D realizing a SEM or SD are impossible / provide results wrong,
-
-								with -av 2 it should be more reasonable because the computation does not depend on azimuthal maps as in Fit2D, the direct image with its pixel can be processed, 
-								however the result will maybe depend on rad_bins (affects width of the rings) then, what is okay since decreasing the number of points by larger bins (rad_bins) should result in smaller errorbars
+		specifiers with "-" are optionally, those with "+" are mandatory:
 
 
-		+mask <maskfile>				apply mask from Fit2D maskfile to all images in filelist
-								e.g. -mask 300k_20Hz.msk
+			-av <av>					average mode:
+									0 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars
+									     uses CAKE -> INTEGRATE module
+									     allows more flexibility with regard to azimuthal and radial range
+									1 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars (default)
+									     uses standard INTEGRATE module
+									2 -> azimuthal averaging without Fit2D, without / with errorbars (not implemented yet)
 
-		+seq <first_file last_file min_pos max_pos>	sequence of input files with a fixed run number scheme between min_pos and max_pos
-								e.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14
-								     +seq 002367.tif 003689.tif 1 6
-								files in the sequence that don't exist will not be considered, a warning message will be posted
-								it is possible to use multiple instances of +seq option and to use +seq in combination with +f
-
-		+f <file_1 ... file_n>				list of several tif-files, not necessarily with a run number scheme
-								e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
-								it is possible to use multiple instances of +f option and to use +f in combination with +seq
-
-		+bc <bc[0] bc[1]>				beam center x-y-coordinates applied for all images in filelist [pix]
-								e.g. +bc 270.5 89.6
-								can be read automatically for SAXSLAB tifs if xml entry is included
-								e.g. +bc auto
-
-		+sdd <sdd>					sample-detector-distance applied for all images in filelist [mm]
-								e.g. +sdd 290
-								can be read automatically for SAXSLAB tifs if xml entry is included
-								e.g. +sdd auto
-
-		+lambda <lambda>				wavelength applied for all images in filelist [Angstroem]
-								e.g. +lambda 1.5418
-								can be read automatically for SAXSLAB tifs if xml entry is included
-								e.g. +lambda auto
-
-		+pix_size <pixsz_x pixsz_y>			pixel sizes of detector applied for all images in filelist [microns]
-								e.g. +pix_size 172 172
-								can be read automatically for SAXSLAB tifs if xml entry / tif-header is included
-								e.g. +pix_size auto
-
-		-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all images in filelist
-
-		-abs_units <cf d T t (d_b T_b t_b) >		absolute units calibration applied for all images in filelist
-								where: calibration factor cf [cps], sample thickness d [cm], Transmission T [0...1] and exposure time t [s]
-								d, T, and t can be read automatically for SAXSLAB tifs if xml entries are included
-								e.g. -abs_units 0.7 0.1 0.2456 3600
-								e.g. -abs_units 0.7 auto auto auto
-								e.g. -abs_units 0.7 auto 0.1 auto
-								e.g. -abs_units 0.7 0.1 0.2456 auto
-								...
-								if -subtract option is used also d_b, T_b and t_b for the background file must be appended !
-								e.g. -abs_units 0.7 auto auto auto auto auto auto
-								e.g. -abs_units 0.7 0.1 0.234 auto 0.1 0.221 auto
-								...
+			-err <err>					errorbar mode:
+									0 -> no error bars (produces -1 numbers in 3rd column)
+									1 -> Poisson-style (default)
 
 
-		-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
+			+mask <maskfile>				apply mask from Fit2D maskfile to all images in file_list
+									e.g. -mask 300k_20Hz.msk
 
-		-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
-								CSV lists and / or range specifications possible
-								e.g. -l 1:1:3 
-								     -l 3,4,5,6,235,236
-								     -l 2:3:14 
-								     -l 3,4,5,6,235,236 -l 100:1:121
-								note that other options like -nonnegative (considered first when writing output) might affect line numbers too!
+			+seq <first_file last_file min_pos max_pos>	sequence of input files with a fixed run number scheme between min_pos and max_pos
+									e.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14
+									     +seq 002367.tif 003689.tif 1 6
+									files in the sequence that don't exist will not be considered, a warning message will be posted
+									it is possible to use multiple instances of +seq option and to use +seq in combination with +f
+
+			+f <file_1 ... file_n>				list of several tif-files, not necessarily with a run number scheme
+									e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
+									it is possible to use multiple instances of +f option and to use +f in combination with +seq
+
+			+bc <bc[0] bc[1]				beam center y and z coordinates applied for all images in file_list [pix]
+									e.g. +bc 270.5 89.6
+									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: beamcenter_actual
+									e.g. +bc auto
+
+			+sdd <sdd>					sample-detector-distance applied for all images in file_list [mm]
+									e.g. +sdd 290
+									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: detector_dist
+									e.g. +sdd auto
+
+			+lambda <lambda>				wavelength applied for all images in file_list [Angstroem]
+									e.g. +lambda 1.5418
+									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: wavelength
+									e.g. +lambda auto
+
+			+pix_size <pixsz_y pixsz_z>			pixel sizes of detector applied for all images in file_list [microns]
+									e.g. +pix_size 172 172
+									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: pix_size
+									with auto argument, for PILATUS tifs it will be automatically read from each file (via # Pixel_size)
+									e.g. +pix_size auto
+
+			-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in file_list
+									the subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)
+
+			-abs_units <cf d T t (cf_b d_b T_b t_b)>	absolute units calibration applied for all images in file_list
+									where:
+									     cf (cf_b) - sample (background) calibration factor [1/cps]
+									     d (d_b) - sample (background) thickness [cm]
+									     T (T_b) - sample (background) transmission [0...1]
+									     t (t_b) - sample (background) exposure time [s]
+									with auto argument, for SAXSLAB tifs cf will be automatically calculated (with pix_size and sdd) from each file if the xml entry is set: saxsconf_Izero
+									with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_thickness
+									with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_transfact)
+									with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: det_exposure_time
+									with auto argument, for PILATUS tifs t will be automatically read from each file (via # Exposure_time)
+									e.g. -abs_units 0.7 0.1 0.2456 3600
+									     -abs_units 0.7 auto auto auto
+									     -abs_units 0.7 auto 0.1 auto
+									     -abs_units 0.7 0.1 0.2456 auto
+									     -abs_units auto auto auto auto
+									if -subtract option is used also cf_b, d_b, T_b and t_b for the background file must be appended !
+									e.g. -abs_units 0.72 auto auto auto 0.69 auto auto auto
+									     -abs_units 0.72 0.1 0.234 auto 0.69 0.1 0.221 auto
+									     -abs_units auto 0.15 auto auto auto 0.15 auto auto
+									     -abs_units auto auto auto auto auto auto auto auto
+
+			-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
+
+			-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
+									comma separated lists and / or range specifications possible
+									e.g. -l 1:1:3
+									     -l 3,4,5,6,235,236
+									     -l 2:3:14
+									     -l 3,4,5,6,235,236 -l 100:1:121
+									note that other options like -nonnegative (considered first when writing output) might affect line numbers too!
+
+			-rad_st <rad_st>				start inner radius for radial distance [pix] applied for all images in file_list
+									default is 0.0 [pix], for modes av == 0 & 2 only
+
+			-rad_end <rad_end>				end outer radius for radial distance [pix] applied for all images in file_list
+									will be automatically calculated by default from the most distant corner of the image with respect to the bc
+			OR
+			-max_2theta <max_2theta>			maximum 2theta angle applied for all images in file_list
+									will be automatically calculated by default from the most distant corner of the image with respect to the bc
+
+			-rad_bins <rad_bins>				number of radial bins [integer] applied for all images in file_list
+									will be automatically calculated by default from the most distant corner of the image to the bc and the pix_size
+									for -av 0 and -rad_bins 1 the azimuthal intensity is exported as chi file for a (partial) ring / sector that,
+									is defined by rad_st, rad_end (or max_2theta), azi_st, azi_end and azi_bins
+
+			-azi_st <azi_st>				start azimuthal angle [deg] applied for all images in file_list
+									default is 0.0 [deg], for modes av == 0 & 2 only
+
+			-azi_end <azi_end>				end azimuthal angle [deg] applied for all images in file_list
+									default is 360.0 [deg], for modes av == 0 & 2 only
+
+			-azi_bins <azi_bins>				number of azimuthal bins [integer] applied for all images in file_list
+									by default will be computed from azi_st and azi_end in 1 [deg] steps, for modes av == 0 & 2 only
+
+			-pol_fac <pol_fac>				polarisation factor
+									default is 0.99 for lab sources (for synchrotrons 0.95 might be better)
+
+			-nonnegative					export only lines in *.chi-files where intensities are strictly positive (>0)
+									in case of -subtract option this affects all lines where sample, background and difference are >0
+
+			-openmp						OpenMP parallelization support, by default off
+
+			-v						verbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analyis / debugging
+
+			-mac <macrofile>				user-defined Fit2D macro-file, for modes av == 0 & 1 only
 
 
-		-rad_st <rad_st>				start inner radius for radial distance [pix] applied for all images in filelist
-								default is 0.0 [pix], for modes av == 0 & 2 only
+		examples:
 
-		-rad_end <rad_end>				end outer radius for radial distance [pix] applied for all images in filelist
-								will be automatically calculated by default from the most distant corner of the image with respect to the bc
-		OR
-		-max_2theta <max_2theta>			maximum 2theta angle applied for all images in filelist
-								will be automatically calculated by default from the most distant corner of the image with respect to the bc
+			(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1, err == 1) requesting a Q-scale in units of [1/nm]
 
-		-rad_bins <rad_bins>				number of radial bins [integer] applied for all images in filelist
-								will be automatically calculated by default from the most distant corner of the image to the bc and the pix_size
+			    fit2dcorr +mask mask.msk +f test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 0.65 3600 -qscale Q_nm-1
 
-								for -av 0 and -rad_bins 1 the azimuthal intensity is exported as chi file for a (partial) ring / sector
-								that is defined by rad_st, rad_end (or max_2theta), azi_st, azi_end and azi_bins
+			(2) same as (1) but for for a list of SAXSLAB tiff-files where the different transmissions T and exposure times t can be read automatically
+
+			    fit2dcorr +mask mask.msk +f file_1.tiff file_2.tiff test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 auto auto
+
+			(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,
+			    images are SAXSLAB data format, containing the data I0 d T t lambda pix_size as xml entries, that are automatically read,
+			    integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,
+			    errorbars in subtracted file are computed by error propagation from the sample and background files,
+			    all non-positive data points will be skipped as well as the first 5 points,
+			    parallelization is used via OpenMP (depending on compilation and OS)
+
+			    fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units auto auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp
+
+			(4) data reduction of a list of SAXSLAB tiff-files to extract the scattered intensity along a Debye-Scherrer ring sector,
+			    normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read
+			    most parameters are read automatically, since they were written to the tiff-files during beamtime,
+			    integration shall be done in a ring sector (0-360 [deg], 100-140 [pix]) with 120 angular-bins (3 [deg] steps), what requires mode av == 0,
+			    rad_bins == 1 enforces intensity vs azimuthal angle,
+			    no errobars are calculated (err == 0)
+
+			    fit2dcorr -av 0 -err 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1
 
 
-		-azi_st <azi_st>				start azimuthal angle [deg] applied for all images in filelist
-								default is 0.0 [deg], for modes av == 0 & 2 only
+		compilation:
 
-		-azi_end <azi_end>				end azimuthal angle [deg] applied for all images in filelist
-								default is 360.0 [deg], for modes av == 0 & 2 only
+			on Linux OS install package libtiff and call
 
-		-azi_bins <azi_bins>				number of azimuthal bins [integer] applied for all images in filelist
-								by default will be computed from azi_st and azi_end in 1 [deg] steps, for modes av == 0 & 2 only
+			./compile_fit2dcorr.sh g++ 3 NONE
 
-		-pol_fac <pol_fac>				polarisation factor
-								default is 0.99 for lab sources (for synchrotrons 0.95 might be better)
+			to compile it with gcc/g++ with OpenMP support and optimization level 3, using the provided Makefile and compile_fit2dcorr.sh script
 
-		-nonnegative					export only lines in *.chi-files where intensities are strictly positive (>0)
-								in case of -subtract option this affects all lines where sample, background and difference are >0
 
-		-openmp 					OpenMP support, by default deactivated
-
-		-v						verbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analyis / debugging
-
-		-mac <macrofile>  				user-defined Fit2D macro-file, for modes av == 0 & 1 only
- 
 		*/
 
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "fit2dcorr -- usage\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "specifier with \"-\" are optionally, those with \"+\" are mandatory:\n") ;
+		fprintf( stdout, "specifiers with \"-\" are optionally, those with \"+\" are mandatory:\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-av <av>\t\t\t\t\taverage mode:\n") ;
@@ -536,7 +618,7 @@ class fit2dcorr
 		fprintf( stdout, "\t\t\t\t\t\t\t1 -> Poisson-style (default)\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t+mask <maskfile>\t\t\t\tapply mask from Fit2D maskfile to all images in filelist\n") ;
+		fprintf( stdout, "\t+mask <maskfile>\t\t\t\tapply mask from Fit2D maskfile to all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. -mask 300k_20Hz.msk\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t+seq <first_file last_file min_pos max_pos>\tsequence of input files with a fixed run number scheme between min_pos and max_pos\n") ;
@@ -549,71 +631,83 @@ class fit2dcorr
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. 002367.tiff 002345.tiff 1-a6.tif test.tif\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tit is possible to use multiple instances of +f option and to use +f in combination with +seq\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t+bc <bc[0] bc[1]\t\t\t\tbeam center x-y-coordinates applied for all images in filelist [pix]\n") ;
+		fprintf( stdout, "\t+bc <bc[0] bc[1]\t\t\t\tbeam center y and z coordinates applied for all images in file_list [pix]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +bc 270.5 89.6\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\tcan be read automatically for SAXSLAB tifs if xml entry is included\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: beamcenter_actual\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +bc auto\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t+sdd <sdd>\t\t\t\t\tsample-detector-distance applied for all images in filelist [mm]\n") ;
+		fprintf( stdout, "\t+sdd <sdd>\t\t\t\t\tsample-detector-distance applied for all images in file_list [mm]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +sdd 290\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\tcan be read automatically for SAXSLAB tifs if xml entry is included\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: detector_dist\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +sdd auto\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t+lambda <lambda>\t\t\t\twavelength applied for all images in filelist [Angstroem]\n") ;
+		fprintf( stdout, "\t+lambda <lambda>\t\t\t\twavelength applied for all images in file_list [Angstroem]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +lambda 1.5418\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\tcan be read automatically for SAXSLAB tifs if xml entry is included\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: wavelength\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +lambda auto\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t+pix_size <pixsz_x pixsz_y>\t\t\tpixel sizes of detector applied for all images in filelist [microns]\n") ;
+		fprintf( stdout, "\t+pix_size <pixsz_y pixsz_z>\t\t\tpixel sizes of detector applied for all images in file_list [microns]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +pix_size 172 172\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\tcan be read automatically for SAXSLAB tifs if xml entry / tif-header is included\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: pix_size\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for PILATUS tifs it will be automatically read from each file (via # Pixel_size)\n") ; // both are equivalent
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. +pix_size auto\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-subtract <file_b vol_fract_b>\t\t\toption to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in filelist\n") ;
+		fprintf( stdout, "\t-subtract <file_b vol_fract_b>\t\t\toption to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tthe subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-abs_units <cf d T t (d_b T_b t_b) >\t\tabsolute units calibration applied for all images in filelist\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\twhere: calibration factor cf [cps], sample thickness d [cm], Transmission T [0...1] and exposure time t [s]\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\td, T, and t can be read automatically for SAXSLAB tifs if xml entries are included\n") ;
+		fprintf( stdout, "\t-abs_units <cf d T t (cf_b d_b T_b t_b)>\tabsolute units calibration applied for all images in file_list\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twhere:\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     cf (cf_b) - sample (background) calibration factor [1/cps]\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     d (d_b) - sample (background) thickness [cm]\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     T (T_b) - sample (background) transmission [0...1]\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     t (t_b) - sample (background) exposure time [s]\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs cf will be automatically calculated (with pix_size and sdd) from each file if the xml entry is set: saxsconf_Izero\n") ; // Izero = Imon * Ieff (Ieff for PIN-Diode typ >= 1, for Detector == 1)
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_thickness\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_transfact)\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: det_exposure_time\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\twith auto argument, for PILATUS tifs t will be automatically read from each file (via # Exposure_time)\n") ; // both are equivalent
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. -abs_units 0.7 0.1 0.2456 3600\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units 0.7 auto auto auto\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units 0.7 auto 0.1 auto\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units 0.7 0.1 0.2456 auto\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\tif -subtract option is used also d_b, T_b and t_b for the background file must be appended !\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\te.g. -abs_units 0.7 auto auto auto auto auto auto\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units 0.7 0.1 0.234 auto 0.1 0.221 auto\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units auto auto auto auto\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\tif -subtract option is used also cf_b, d_b, T_b and t_b for the background file must be appended !\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\te.g. -abs_units 0.72 auto auto auto 0.69 auto auto auto\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units 0.72 0.1 0.234 auto 0.69 0.1 0.221 auto\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units auto 0.15 auto auto auto 0.15 auto auto\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units auto auto auto auto auto auto auto auto\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-qscale <Qscale>\t\t\t\tQ_nm-1 for \"Q [1/nm]\" (default), Q_A-1 for \"Q [1/A]\", s_nm-1 for \"s [1/nm]\", s_A-1 for \"s [1/A]\"\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-l <ranges>\t\t\t\t\tlist(s) of lines to skip in all averaged files, multiple instances are possible !\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\tCSV lists and / or range specifications possible\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\tcomma separated lists and / or range specifications possible\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\te.g. -l 1:1:3\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -l 3,4,5,6,235,236\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -l 2:3:14\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -l 3,4,5,6,235,236 -l 100:1:121\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tnote that other options like -nonnegative (considered first when writing output) might affect line numbers too!\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-rad_st <rad_st>\t\t\t\tstart inner radius for radial distance [pix] applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-rad_st <rad_st>\t\t\t\tstart inner radius for radial distance [pix] applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tdefault is 0.0 [pix], for modes av == 0 & 2 only\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-rad_end <rad_end>\t\t\t\tend outer radius for radial distance [pix] applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-rad_end <rad_end>\t\t\t\tend outer radius for radial distance [pix] applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\twill be automatically calculated by default from the most distant corner of the image with respect to the bc\n") ;
 		fprintf( stdout, "\tOR\n") ;
-		fprintf( stdout, "\t-max_2theta <max_2theta>\t\t\tmaximum 2theta angle applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-max_2theta <max_2theta>\t\t\tmaximum 2theta angle applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\twill be automatically calculated by default from the most distant corner of the image with respect to the bc\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-rad_bins <rad_bins>\t\t\t\tnumber of radial bins [integer] applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-rad_bins <rad_bins>\t\t\t\tnumber of radial bins [integer] applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\twill be automatically calculated by default from the most distant corner of the image to the bc and the pix_size\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tfor -av 0 and -rad_bins 1 the azimuthal intensity is exported as chi file for a (partial) ring / sector that,\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tis defined by rad_st, rad_end (or max_2theta), azi_st, azi_end and azi_bins\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-azi_st <azi_st>\t\t\t\tstart azimuthal angle [deg] applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-azi_st <azi_st>\t\t\t\tstart azimuthal angle [deg] applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tdefault is 0.0 [deg], for modes av == 0 & 2 only\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-azi_end <azi_end>\t\t\t\tend azimuthal angle [deg] applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-azi_end <azi_end>\t\t\t\tend azimuthal angle [deg] applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tdefault is 360.0 [deg], for modes av == 0 & 2 only\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-azi_bins <azi_bins>\t\t\t\tnumber of azimuthal bins [integer] applied for all images in filelist\n") ;
+		fprintf( stdout, "\t-azi_bins <azi_bins>\t\t\t\tnumber of azimuthal bins [integer] applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tby default will be computed from azi_st and azi_end in 1 [deg] steps, for modes av == 0 & 2 only\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-pol_fac <pol_fac>\t\t\t\tpolarisation factor\n") ;
@@ -640,13 +734,13 @@ class fit2dcorr
 		fprintf( stdout, "\t    fit2dcorr +mask mask.msk +f file_1.tiff file_2.tiff test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 auto auto\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,\n") ;
-		fprintf( stdout, "\t    images are SAXSLAB data format, containing the data d T t lambda pix_size as xml entries, that are automatically read,\n") ;
+		fprintf( stdout, "\t    images are SAXSLAB data format, containing the data I0 d T t lambda pix_size as xml entries, that are automatically read,\n") ;
 		fprintf( stdout, "\t    integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,\n") ;
 		fprintf( stdout, "\t    errorbars in subtracted file are computed by error propagation from the sample and background files,\n") ;
 		fprintf( stdout, "\t    all non-positive data points will be skipped as well as the first 5 points,\n") ;
 		fprintf( stdout, "\t    parallelization is used via OpenMP (depending on compilation and OS)\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t    fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units 23.4 auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp\n") ;
+		fprintf( stdout, "\t    fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units auto auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t(4) data reduction of a list of SAXSLAB tiff-files to extract the scattered intensity along a Debye-Scherrer ring sector,\n") ;
 		fprintf( stdout, "\t    normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read\n") ;
@@ -671,13 +765,12 @@ class fit2dcorr
 	}
 
 
-	/* returns a particular SAXSLAB-xml-entry as string from the SAXSLAB-modified Pilatus-tif-images */
+	/* returns a particular SAXSLAB-xml-entry as string from the SAXSLAB-modified PILATUS-tif-images */
 	string read_xml_entry_from_tif(string filename, string entry)
 	{
 		/* typical structure for SAXSLAB 300k, the #-commented lines are from Dectris:
 
-			<binary header line(s)>
-			# Pixel_size 172e-6 m x 172e-6 m
+			<binary header line> # Pixel_size 172e-6 m x 172e-6 m
 			# Silicon sensor, thickness 0.000320 m
 			# Exposure_time 0.100000 s
 			# Exposure_period 0.100000 s
@@ -695,7 +788,7 @@ class fit2dcorr
 			<SAXSLAB xml entries>
 			<binary data for tif-image>
 
-		   a similar struture without the xml can be found for the 100k Pilatus images
+		   a similar struture without the xml can be found for the 100k PILATUS images
 		*/
 
 		/* 
@@ -748,7 +841,6 @@ class fit2dcorr
 		char data[defsigns] ;
 		FILE *file ;
 		double ddummy, ddummy2 ;
-
  
 		/* hardcopy command line call parameters to evarg */
 		ecarg = carg ;
@@ -800,14 +892,17 @@ class fit2dcorr
 		mac_isdef = false ;
 
 		abs_units_isdef = false ;
-		thickness_isdef = false ;
-		transmission_isdef = false ;
-		exptime_isdef = false ;
+		cf_isauto = false ;
+		thickness_isauto = false ;
+		transmission_isauto = false ;
+		exptime_isauto = false ;
 
 		subtract_isdef = false ;
-		thickness_b_isdef = false ;
-		transmission_b_isdef = false ;
-		exptime_b_isdef = false ;
+		cf_b_isauto = false ;
+		thickness_b_isauto = false ;
+		transmission_b_isauto = false ;
+		exptime_b_isauto = false ;
+
 		/* prior to reading of input check for -subtract option, since it affects -abs_units input arguments */
 		for ( unsigned int i=1; i<carg; ++i) { if ( !strcmp(varg[i], "-subtract") ) { subtract_isdef = true ; } }
 
@@ -844,28 +939,33 @@ class fit2dcorr
 					case 'a':
 						if ( !strcmp(varg[i], "-abs_units") )
 						{
+							/* 
+								input must be either auto or numeric
+								if auto the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml records in the tif file
+								if non-auto it will be tried to read input as a number (if fails error and exit) and flag will set in case of success to true
+							*/
+
 							/* calibration factor cf */
 							if ( ++i<carg )
 							{
-								if ( is_numeric(varg[i]) ) { cf = strtod( varg[i], NULL) ; }
-								else { fit2dcorr_error(2) ; }
+								if ( strcmp( varg[i], "auto") )
+								{
+									if ( is_numeric(varg[i]) ) { cf_def = strtod( varg[i], NULL) ; }
+									else { fit2dcorr_error(2) ; }
+								}
+								else { cf_isauto = true ; }
 							}
 							else { fit2dcorr_error(1) ; }
 
-							/* d, T and t for data files */
-							/* 
-								input must be either "auto" or numeric
-								if "auto" the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml entry in tif
-								if non-"auto" it will be tried to read input as a number (if fails error and exit) and flag will set in case of success to true
-							*/
+							/* d, T and t for sample files */
 							if ( ++i<carg )
 							{
 								if ( strcmp( varg[i], "auto") )
 								{
 									if ( is_numeric(varg[i]) ) { thickness_def = strtod( varg[i], NULL) ; }
 									else { fit2dcorr_error(2) ; }
-									thickness_isdef = true ;
 								}
+								else { thickness_isauto = true ; }
 							}
 							else { fit2dcorr_error(1) ; }
 
@@ -875,8 +975,8 @@ class fit2dcorr
 								{
 									if ( is_numeric(varg[i]) ) { transmission_def = strtod( varg[i], NULL) ; }
 									else { fit2dcorr_error(2) ; }
-									transmission_isdef = true ;
 								}
+								else { transmission_isauto = true ;} 
 							}
 							else { fit2dcorr_error(1) ; }
 
@@ -886,22 +986,33 @@ class fit2dcorr
 								{
 									if ( is_numeric(varg[i]) ) { exptime_def = strtod( varg[i], NULL) ; }
 									else { fit2dcorr_error(2) ; }
-									exptime_isdef = true ;
 								}
+								else { exptime_isauto = true ; }
 							}
 							else { fit2dcorr_error(1) ; }
 
-							/* d_b, T_b and t_b for background file */
+							/* cf_b, d_b, T_b and t_b for background file */
 							if ( subtract_isdef )
 							{
 								if ( ++i<carg )
 								{
 									if ( strcmp( varg[i], "auto") )
 									{
+										if ( is_numeric(varg[i]) ) { cf_b_def = strtod( varg[i], NULL) ; }
+										else { fit2dcorr_error(2) ; }
+									}
+									else { cf_b_isauto = true ; }
+								}
+								else { fit2dcorr_error(1) ; }
+
+								if ( ++i<carg )
+								{
+									if ( strcmp( varg[i], "auto") )
+									{
 										if ( is_numeric(varg[i]) ) { thickness_b_def = strtod( varg[i], NULL) ; }
 										else { fit2dcorr_error(2) ; }
-										thickness_b_isdef = true ;
 									}
+									else { thickness_b_isauto = true ; }
 								}
 								else { fit2dcorr_error(1) ; }
 
@@ -911,8 +1022,8 @@ class fit2dcorr
 									{
 										if ( is_numeric(varg[i]) ) { transmission_b_def = strtod( varg[i], NULL) ; }
 										else { fit2dcorr_error(2) ; }
-										transmission_b_isdef = true ;
 									}
+									else { transmission_b_isauto = true ;} 
 								}
 								else { fit2dcorr_error(1) ; }
 
@@ -922,8 +1033,8 @@ class fit2dcorr
 									{
 										if ( is_numeric(varg[i]) ) { exptime_b_def = strtod( varg[i], NULL) ; }
 										else { fit2dcorr_error(2) ; }
-										exptime_b_isdef = true ;
 									}
+									else { exptime_b_isauto = true ; }
 								}
 								else { fit2dcorr_error(1) ; }
 							}
@@ -995,9 +1106,9 @@ class fit2dcorr
 						if ( !strcmp( varg[i], "+bc") )
 						{
 							/* 
-								input must be either "auto" or two numerics
-								if "auto" the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml entry in tif
-								if non-"auto" it will be tried to read input as numbers (if fails error and exit) and flag will set in case of success to true
+								input must be either auto or two numerics
+								if auto the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml entry in tif
+								if non-auto it will be tried to read input as numbers (if fails error and exit) and flag will set in case of success to true
 							*/
 							for ( j=0; j<2; ++j)
 							{
@@ -1036,14 +1147,15 @@ class fit2dcorr
 							{
 								if ( *varg[i] != '-' && *varg[i] != '+' )
 								{
-									/* check if file exists annd add to filelist */
+									/* check if file exists annd add to file_list */
 									if ( ( file = fopen( varg[i], "r")) == NULL)
 									{
 										fprintf( stdout, "Error: File %s in a +f option does not exit. Exit.\n", varg[i]) ;
+										exit(1) ;
 									}
 									fclose(file) ;
 
-									filelist.push_back( (string)varg[i] ) ;
+									file_list.push_back( (string)varg[i] ) ;
 
 									file_isdef = true ;
 								}
@@ -1118,7 +1230,7 @@ class fit2dcorr
 								}
 								else
 								{
-									/* CSV list e.g. 2,5,6,7,19 */
+									/* comma separated list e.g. 2,5,6,7,19 */
 									strptr1 = varg[i] ;
 									while ( (strptr2 = strchr( strptr1, ',')) != NULL)
 									{
@@ -1226,9 +1338,9 @@ class fit2dcorr
 						if ( !strcmp(varg[i], "+pix_size") )
 						{
 							/* 
-								input must be either "auto" or two numerics
-								if "auto" the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml entry in tif
-								if non-"auto" it will be tried to read input as numbers (if fails error and exit) and flag will set in case of success to true
+								input must be either auto or two numerics
+								if auto the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml entry in tif
+								if non-auto it will be tried to read input as numbers (if fails error and exit) and flag will set in case of success to true
 							*/
 							for ( j=0; j<2; ++j)
 							{
@@ -1315,7 +1427,7 @@ class fit2dcorr
 								{
 									if ( *varg[i] != '-' && *varg[i] != '+' )
 									{
-										seqfilelist.push_back( (string)varg[i] ) ;
+										seqfile_list.push_back( (string)varg[i] ) ;
 									}
 									else
 									{
@@ -1330,7 +1442,7 @@ class fit2dcorr
 							{
 								if ( ++i<carg )
 								{
-									if ( is_numeric(varg[i]) ) { seqposlist.push_back( (unsigned int)strtol( varg[i], NULL, 10) ) ; }
+									if ( is_numeric(varg[i]) ) { seqpos_list.push_back( (unsigned int)strtol( varg[i], NULL, 10) ) ; }
 									else { fit2dcorr_error(2) ; }
 								}
 								else { fit2dcorr_error(1) ; }
@@ -1553,50 +1665,74 @@ class fit2dcorr
 		if ( ! ( bc_isdef || bc_isauto ) || ! ( sdd_isdef || sdd_isauto ) || ! ( lambda_isdef || lambda_isauto ) || ! ( pix_size_isdef || pix_size_isauto ) || !mask_isdef || ! ( seq_isdef || file_isdef ) ) { fit2dcorr_error(6) ; }
 
 
-		/* in case of a +seq option derive filenames from the given sequence(s) and add filenames to filelist */
+		/* in case of a +seq option derive filenames from the given sequence(s) and add filenames to file_list */
 		/* file existence is checked, missing files are omitted (warning message is shown) */
-		if ( seq_isdef ) { deduce_filelist_from_sequence() ; }
+		if ( seq_isdef ) { deduce_file_list_from_sequence() ; }
+
+
+		/* check for duplicate files in file_list (incl file_b) since this leads to erros */
+		if ( subtract_isdef ) { file_list.push_back( file_b ) ; }
+		for ( unsigned int i = 0; i < file_list.size(); i++)
+		{
+			for ( unsigned int k = i+1; k < file_list.size(); k++)
+			{
+				if ( file_list.at(i).compare( file_list.at(k) ) == 0 )
+				{
+					fprintf( stdout, "Duplicate filenames in file_list (incl file_b) found. Exit.\n") ;
+					exit(1) ;
+				}
+			}
+		}
+		if ( subtract_isdef ) { file_list.pop_back() ; }
+
 
 
 
 		/*
-		   now filelist[] is defined and other parameters might be derived from 1st file in it automatically
+		   now file_list is defined and other parameters might be derived from 1st file in it automatically
 
-		   read some parameters that were flagged by "auto" from SAXSLAB xml entries
+		   read some parameters that were flagged by auto from SAXSLAB xml entries
 		*/
 
 
 		/* 
-		   image size of Pilatus-tif (e.g. 487x195 or 487x619) will be read via libtiff,
-		   it is assumed that all files in filelist have the same image dimensions !!!
+		   image size of PILATUS-tif (e.g. 487x195 or 487x619) will be read via libtiff,
+		   it is assumed that all files in file_list have the same image dimensions !!!
 		*/
-		info_tif( filelist[0], image_size[0], image_size[1]) ;
+		info_tif( file_list[0], image_size[0], image_size[1]) ;
 
 
 		/* 
-		   derive pixel geometry from 1st image in filelist in case of "auto" via SAXSLAB xml entry
+		   derive pixel geometry from 1st image in file_list in case of auto via SAXSLAB xml entry
 		   it is assumed that all images in the list have the same pixel sizes as the first one
 		   transform to [microns] since they are given in [m]
 		*/
 		if ( pix_size_isauto )
 		{
-			string str = read_xml_entry_from_tif( filelist[0], "det_pixel_size") ;
-			stringstream ss(str) ;
-			ss >> pix_size[0] >> pix_size[1] ;
-			pix_size[0] *= 1.0e+6 ; pix_size[1] *= 1.0e+6 ;
-
+			string str = read_xml_entry_from_tif( file_list[0], "det_pixel_size") ;
+			if ( str.length() != 0 )
+			{
+				stringstream ss(str) ;
+				ss >> pix_size[0] >> pix_size[1] ;
+				pix_size[0] *= 1.0e+6 ; pix_size[1] *= 1.0e+6 ;
+			}
+			else // fallback to PILATUS header, does NOT work yet
+			{
+				fprintf( stdout, "Could not read pix_size from SAXSLAB header in file %s, try to read it from PILATUS header instead.\n", file_list[0].c_str()) ;
+				get_pixel_size_from_PILATUS_tif( pix_size[0], pix_size[1], file_list[0]) ;
+			}
 			pix_size_isdef = true ;
 		}
 
 		/* 
-		   derive bc from 1st image in filelist in case of "auto" via SAXSLAB xml entry
+		   derive bc from 1st image in file_list in case of auto via SAXSLAB xml entry
 		   it is assumed that all images in the list have the same bc as the first one
 		   note that SAXSLABs bc coordinates are not the same as for Fit2D, apply transformation
-		   x = y and y = image_size[1] - x
+		   y = z and z = image_size[1] - y
 		*/
 		if ( bc_isauto )
 		{
-			string str = read_xml_entry_from_tif( filelist[0], "beamcenter_actual") ;
+			string str = read_xml_entry_from_tif( file_list[0], "beamcenter_actual") ;
 			stringstream ss(str) ;
 			ss >> bc[1] >> bc[0] ;
 			// could be also image_size[1] - 1 instead ... same for bc[1] 1 pix offset unclear ...
@@ -1606,22 +1742,22 @@ class fit2dcorr
 		}
 
 		/* 
-		   derive lambda from 1st image in filelist in case of "auto" via SAXSLAB xml entry
+		   derive lambda from 1st image in file_list in case of auto via SAXSLAB xml entry
 		   it is assumed that all images in the list have the same lambda as the first one
 		 */
 		if ( lambda_isauto )
 		{
-			lambda = strtod( read_xml_entry_from_tif( filelist[0], "wavelength").c_str(), NULL) ;
+			lambda = strtod( read_xml_entry_from_tif( file_list[0], "wavelength").c_str(), NULL) ;
 			lambda_isdef = true ;
 		}
 
 		/* 
-		   derive sdd from 1st image in filelist in case of "auto" via SAXSLAB xml entry
+		   derive sdd from 1st image in file_list in case of auto via SAXSLAB xml entry
 		   it is assumed that all images in the list have the same sdd as the first one
 		*/
 		if ( sdd_isauto )
 		{
-			sdd = strtod( read_xml_entry_from_tif( filelist[0], "detector_dist").c_str(), NULL) ;
+			sdd = strtod( read_xml_entry_from_tif( file_list[0], "detector_dist").c_str(), NULL) ;
 			sdd_isdef = true ;
 		}
 
@@ -1631,14 +1767,14 @@ class fit2dcorr
 
 
 
-		/* print filelist and some common parameters that apply for all files */
+		/* print file_list and some common parameters that apply for all files */
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "summary of some input arguments:\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\tfiles:\n") ;
-		for ( unsigned int i=0; i<filelist.size(); ++i)
+		for ( unsigned int i=0; i<file_list.size(); ++i)
 		{
-			fprintf( stdout, "\t%s\n", filelist[i].c_str()) ;
+			fprintf( stdout, "\t%s\n", file_list[i].c_str()) ;
 		}
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\tmask=%s\n", maskfile.c_str()) ;
@@ -1666,11 +1802,11 @@ class fit2dcorr
 
 
 		/* 
-			get sample (and background) thicknesses d, transmissions T and exptimes t from Pilatus/SAXSLAB xml tif-files or from user input
-			-> cf, thicknesslist[], transmissionlist[], exptimelist[]
-			-> additionally also thickness_b, transmission_b, exptime_b (for -subtract)
+			get sample (and background) thicknesses d, transmissions T and exptimes t from PILATUS/SAXSLAB xml tif-files or from user input
+			-> cf_list, thickness_list, transmission_list, exptime_list
+			-> additionally also cf_b, thickness_b, transmission_b, exptime_b (for -subtract)
 		 */
-		if ( abs_units_isdef ) { get_d_T_t() ; }
+		if ( abs_units_isdef ) { get_cf_d_T_t() ; }
 
 		/* y_scale labeling */
 		if ( abs_units_isdef ) { y_scale = "I [1/cm]" ; }
@@ -1902,10 +2038,9 @@ class fit2dcorr
 
 
 		/*
-
 			now all of the following class-wide variables are set either with default values, by input or are derived automatically
 
-			sdd, lambda, bc[2], pix_size[2], filelist[], maskfile
+			sdd, lambda, bc[2], pix_size[2], maskfile, file_list
 			macrofile, array_size[2]
 			
 			azi_st, azi_end, azi_bins
@@ -1914,8 +2049,8 @@ class fit2dcorr
 			x_scale, x_scale_fac, y_scale
 			
 			optionally also:
-			cf, thicknesslist[], transmissionlist[], exptimelist[] (-abs_units)
-			file_b, thickness_b, transmission_b, exptime_b, vol_fract_b (-subtract and/or -abs_units)
+			cf_list, thickness_list, transmission_list, exptime_list (-abs_units)
+			cf_b, file_b, thickness_b, transmission_b, exptime_b, vol_fract_b (-subtract and/or -abs_units)
 		*/
 	}
 
@@ -1926,11 +2061,11 @@ class fit2dcorr
 		const char *MP_ERR[] =
 		{
 			"No error", /* 00 */
-			"Missing input after command line option.", /* 01 */
-			"Expected a numeric input argument.", /* 02 */
-			"Unknown command line option.", /* 03 */
-			"av must be less than max_av.", /* 04 */
-			"err must be less than max_err.", /* 05 */
+			"Missing input after previous command line option.", /* 01 */
+			"Expected a numeric input argument for previous command line option.", /* 02 */
+			"Previous command line option is unknown.", /* 03 */
+			"av argument for -av option must be less than max_av.", /* 04 */
+			"err argument for -err option must be less than max_err.", /* 05 */
 			"Missing input argument. Check if minimal input arguments +bc +sdd +lambda +pix_size +mask +seq (or +f) are defined." /* 06 */
 		} ;
 
@@ -1973,20 +2108,20 @@ class fit2dcorr
 	   perform absolute intensity calibration
 	   returns dSigma/dOmega[1/cm] = cf[1/cps] * (I/t)[cps] / thickness[cm] / transmission
 	*/
-	void get_abs_intensity( double &I, double thickness, double transmission, double exptime)
+	void get_abs_intensity( double &I, double cf, double thickness, double transmission, double exptime)
 	{
-		I = cf * I / exptime  / thickness / transmission ;
+		I *= cf / exptime  / thickness / transmission ;
 	}
 
 
 
 	/* 
-	   returns the exposure time in seconds given in the comment section of the Pilatus tif-files
+	   returns the exposure time in seconds given in the comment section of the PILATUS tif-files
 	   checks for entry with the tag "# Exposure_time <time> <unit>"
 	   in the following it is assumed that the unit is always seconds (s)
 	   by this, if the user uses e.g. min, h as units in the camserver this is likely to cause problems ... 
 	*/
-	double get_exposure_time_from_tif(string filename)
+	double get_exposure_time_from_PILATUS_tif(string filename)
 	{
 		FILE *file ;
 		char sdummy[defsigns] ;
@@ -2039,7 +2174,7 @@ class fit2dcorr
 					}
 					else
 					{
-						fprintf( stdout, "Error: Missing numeric value for exposure time in tif-file %s. Exit.\n", filename.c_str() ) ;
+						fprintf( stdout, "Error: Missing numeric value for exposure time in PILATUS tif-file %s. Exit.\n", filename.c_str() ) ;
 						exit(1) ;
 					}
 					/* if successfully found, escape loop */
@@ -2052,11 +2187,109 @@ class fit2dcorr
 
 		if ( found == false )
 		{
-			fprintf( stdout, "Error: Cannot find exposure time in tif-file %s. Exit.\n", filename.c_str() ) ; 
+			fprintf( stdout, "Error: Cannot find exposure time in PILATUS tif-file %s. Exit.\n", filename.c_str() ) ; 
 			exit(1) ;
 		}
 		return exptime ;
 	}
+
+
+
+	/* 
+		does not work yet cause of binary file issues
+	*/
+	void get_pixel_size_from_PILATUS_tif( double& pix_size_y, double& pix_size_z, string filename)
+	{
+		FILE *file ;
+		char sdummy[defsigns] ;
+		char data[defsigns] ;
+		char *strptr1, *strptr2 ;
+		bool found = false ;
+		int i;
+
+		/* for Windows binary reading is essential, for Unix it doesn't matter, it works also with text modus */
+		if ( ( file = fopen( filename.c_str(), "rb") ) == NULL )
+		{ 
+			fprintf( stdout, "Error: Cannot read file %s. File does not exist. Exit.\n", filename.c_str() ) ; 
+			exit(1) ;
+		}
+
+		while ( fgets( sdummy, defsigns, file) != NULL )
+		{
+			strptr1 = sdummy ;
+
+			if ( *strptr1 != '#' ) { continue ; }
+
+			++strptr1 ;
+
+			while ( *strptr1 == ' ' ) { ++strptr1 ; }
+
+			if ( ( strptr2 = strchr( strptr1, ' ') ) != NULL )
+			{
+				/* check for correct Pixel_size pattern */
+				// e.g. # Pixel_size 172e-6 m x 172e-6 m
+				i = (int)(strptr2-strptr1) ;
+				memmove( data, strptr1, i) ;
+				data[i] = 0 ;
+
+				if ( !strcmp( data, "Pixel_size") )
+				{
+					found = true ;
+					strptr1 = strptr2 ;
+					while ( *strptr1 == ' ' ) { ++strptr1 ; }
+
+					if ( ( strptr2 = strchr( strptr1, ' ') ) != NULL )
+					{
+						/* read , assume value is given in m, transform to microns */
+						i = (int)(strptr2-strptr1) ;
+						memmove( data, strptr1, i) ;
+						data[i] = 0 ;
+						pix_size_y = 1000.0 * strtod( data, NULL) ;
+					}
+					else
+					{
+						fprintf( stdout, "Error: Missing numeric value for 1st pixel size in PILATUS tif-file %s. Exit.\n", filename.c_str() ) ;
+						exit(1) ;
+					}
+
+					strptr1 = strptr2 ;
+					if ( ( strptr2 = strchr( strptr1, 'x') + 1 ) == NULL )
+					{
+						fprintf( stdout, "Error: Missing numeric value for 2nd pixel size in PILATUS tif-file %s. Exit.\n", filename.c_str() ) ;
+						exit(1) ;
+					}
+					strptr1 = strptr2 ;
+					while ( *strptr1 == ' ' ) { ++strptr1 ; }
+
+					if ( ( strptr2 = strchr( strptr1, ' ') ) != NULL )
+					{
+						/* read , assume value is given in m, transform to microns */
+						i = (int)(strptr2-strptr1) ;
+						memmove( data, strptr1, i) ;
+						data[i] = 0 ;
+						pix_size_z = 1000.0 * strtod( data, NULL) ;
+					}
+					else
+					{
+						fprintf( stdout, "Error: Missing numeric value for 2nd pixel size in PILATUS tif-file %s. Exit.\n", filename.c_str() ) ;
+						exit(1) ;
+					}
+
+					/* if successfully found, escape loop */
+					break ;
+				}
+			}
+		}
+
+		fclose(file) ;
+
+		if ( found == false )
+		{
+			fprintf( stdout, "Error: Cannot find pixel size in PILATUS tif-file %s. Exit.\n", filename.c_str() ) ; 
+			exit(1) ;
+		}
+	}
+
 
 
 	/* function delallspc deletes all spaces in the input string str */
@@ -2085,8 +2318,8 @@ class fit2dcorr
 		/* _set_output_format(_TWO_DIGIT_EXPONENT) ; */
 
 
-		// in case of background subtraction, append background file to filelist, since processing in Fit2D must be exactly the same
-		if ( subtract_isdef ) { filelist.push_back( file_b ) ; }
+		// in case of background subtraction, append background file to file_list, since processing in Fit2D must be exactly the same
+		if ( subtract_isdef ) { file_list.push_back( file_b ) ; }
 
 
 		if ( av < 2 ) /* using Fit2D */
@@ -2117,8 +2350,8 @@ class fit2dcorr
 			/* reset to default */
 			is_intensity_conserved = false ;
 
-			// in case of background subtraction, remove background file now from filelist, to avoid its processing as a sample file later !
-			if ( subtract_isdef ) { filelist.pop_back() ; fit2dfilelist.pop_back() ; fit2dcalllist.pop_back() ; }
+			// in case of background subtraction, remove background file now from file_list, to avoid its processing as a sample file later !
+			if ( subtract_isdef ) { file_list.pop_back() ; fit2dfile_list.pop_back() ; fit2dcall_list.pop_back() ; }
 
 			/*
 				absolute intensity scaling (if abs_units_isdef)
@@ -2133,8 +2366,8 @@ class fit2dcorr
 			process() ;
 
 
-			// in case of background subtraction, remove background file from filelist, to avoid its processing as a sample file 
-//			if ( subtract_isdef ) { filelist.pop_back() ; fit2dfilelist.pop_back() ; fit2dcalllist.pop_back() ; }
+			// in case of background subtraction, remove background file from file_list, to avoid its processing as a sample file 
+//			if ( subtract_isdef ) { file_list.pop_back() ; fit2dfile_list.pop_back() ; fit2dcall_list.pop_back() ; }
 
 
 		}
@@ -2194,8 +2427,8 @@ class fit2dcorr
 		/* join them to sdummy */
 		strcat( sdummy, sdummy2) ;
 
-		fit2dfilelist.resize( filelist.size()) ;
-		fit2dcalllist.resize( filelist.size()) ;
+		fit2dfile_list.resize( file_list.size()) ;
+		fit2dcall_list.resize( file_list.size()) ;
 
 		#pragma omp parallel if ( openmp_isdef )
 		{
@@ -2211,7 +2444,7 @@ class fit2dcorr
 		}
 
 		/* 
-		   filelist, fit2dfilelist, fit2dcalllist are class members and always shared
+		   file_list, fit2dfile_list, fit2dcall_list are class members and always shared
 		   however append operations on vectors should be not be applied to avoid race conditions !!!
 
 		   tests with serialized runs and parallelized runs (-openmp flag) give exactly the same results
@@ -2222,18 +2455,18 @@ class fit2dcorr
 		{
 			/* run Fit2D in batch mode */
 			#pragma omp for schedule(static)
-			for ( i=0; i<filelist.size(); ++i)
+			for ( i=0; i<file_list.size(); ++i)
 			{
-				/* replace *.tif(f) with strsuffix for current filename and update accordingly fit2dfilelist */
-				pos = filelist[i].find(".") ;
-				fit2dfilelist[i] = filelist[i].substr( 0, pos) + strsuffix ;
+				/* replace *.tif(f) with strsuffix for current filename and update accordingly fit2dfile_list */
+				pos = file_list[i].find(".") ;
+				fit2dfile_list[i] = file_list[i].substr( 0, pos) + strsuffix ;
 
 
 				/* use pattern from sdummy with placeholders for strings with INPUT + OUTPUT files and write finally to sdummy2 */
-				sprintf( sdummy2, sdummy, filelist[i].c_str(), fit2dfilelist[i].c_str()) ;
+				sprintf( sdummy2, sdummy, file_list[i].c_str(), fit2dfile_list[i].c_str()) ;
 
-				/* save the program call in the string list fit2dcalllist */
-				fit2dcalllist[i] = string(sdummy2) ;
+				/* save the program call in the string list fit2dcall_list */
+				fit2dcall_list[i] = string(sdummy2) ;
 
 
 				/* run Fit2D call */
@@ -2296,7 +2529,7 @@ class fit2dcorr
 		}
 
 		/* 
-		   fit2dfilelist, and other class members are always shared
+		   fit2dfile_list, and other class members are always shared
 		   however append operations on vectors should be not be applied to avoid race conditions !!!
 
 		   tests with serialized runs and parallelized runs (-openmp flag) give exactly the same results
@@ -2305,12 +2538,12 @@ class fit2dcorr
 		{
 			/* batch mode */
 			#pragma omp for schedule(static)
-			for ( i=0; i<fit2dfilelist.size(); ++i)
+			for ( i=0; i<fit2dfile_list.size(); ++i)
 			{
 				/* read i-th file into memory and correct defect line */
-				if ( ( file = fopen( fit2dfilelist[i].c_str(), "r")) == NULL )
+				if ( ( file = fopen( fit2dfile_list[i].c_str(), "r")) == NULL )
 				{ 
-					fprintf( stdout, "Error: Cannot read file %s. File does not exist. Exit.\n", fit2dfilelist[i].c_str() ) ; 
+					fprintf( stdout, "Error: Cannot read file %s. File does not exist. Exit.\n", fit2dfile_list[i].c_str() ) ; 
 					exit(1) ;
 				}
 
@@ -2340,7 +2573,7 @@ class fit2dcorr
 				fclose(file) ;
 
 				/* rewrite i-th file */
-				if ( ( file = fopen( fit2dfilelist[i].c_str(), "w")) == NULL ) { fprintf( stdout, "Error: Cannot write to file %s. Exit.\n", fit2dfilelist[i].c_str()) ; exit(1) ; }
+				if ( ( file = fopen( fit2dfile_list[i].c_str(), "w")) == NULL ) { fprintf( stdout, "Error: Cannot write to file %s. Exit.\n", fit2dfile_list[i].c_str()) ; exit(1) ; }
 
 				/* create header with relevant parameters of the following type:
 
@@ -2426,14 +2659,16 @@ class fit2dcorr
 				fprintf( file, "%s array_size=%d x %d [pix x pix]\n", presp.c_str(), array_size[0], array_size[1]) ;
 				fprintf( file, "%s pol_fac=%-.3lf\n", presp.c_str(), pol_fac) ;
 				fprintf( file, "%s\n", presp.c_str()) ;
-				fprintf( file, "%s in=%s\n", presp.c_str(), filelist[i].c_str()) ;
-				fprintf( file, "%s out=%s\n", presp.c_str(), fit2dfilelist[i].c_str()) ;
+				fprintf( file, "%s in=%s\n", presp.c_str(), file_list[i].c_str()) ;
+				fprintf( file, "%s out=%s\n", presp.c_str(), fit2dfile_list[i].c_str()) ;
 				if ( abs_units_isdef )
 				{
-					fprintf( file, "%s cf=%-.3lf [1/cps]\n", presp.c_str(), cf) ;
-					fprintf( file, "%s thickness=%-.3lf [cm]\n", presp.c_str(), thicknesslist[i]) ;
-					fprintf( file, "%s transmission=%-.4lf\n", presp.c_str(), transmissionlist[i]) ;
-					fprintf( file, "%s exptime=%-.3lf [s]\n", presp.c_str(), exptimelist[i]) ;
+					fprintf( file, "%s cf=%-.3lf [1/cps]", presp.c_str(), cf_list[i]) ;
+					if ( cf_isauto ) { fprintf( file, " ( phi0=%d [cps] )", phi0_list[i]) ; }
+					fprintf( file, "\n") ;
+					fprintf( file, "%s thickness=%-.3lf [cm]\n", presp.c_str(), thickness_list[i]) ;
+					fprintf( file, "%s transmission=%-.5lf\n", presp.c_str(), transmission_list[i]) ;
+					fprintf( file, "%s exptime=%-.3lf [s]\n", presp.c_str(), exptime_list[i]) ;
 					fprintf( file, "%s\n", presp.c_str()) ;
 				}
 				if ( subtract_isdef )
@@ -2442,8 +2677,11 @@ class fit2dcorr
 					fprintf( file, "%s vol_fract_b=%-.3lf\n", presp.c_str(), vol_fract_b) ;
 					if ( abs_units_isdef )
 					{
+						fprintf( file, "%s cf_b=%-.3lf [1/cps]", presp.c_str(), cf_b) ;
+						if ( cf_b_isauto ) { fprintf( file, " ( phi0_b=%d [cps] )", phi0_b) ; }
+						fprintf( file, "\n") ;
 						fprintf( file, "%s thickness_b=%-.3lf [cm]\n", presp.c_str(), thickness_b) ;
-						fprintf( file, "%s transmission_b=%-.4lf\n", presp.c_str(), transmission_b) ;
+						fprintf( file, "%s transmission_b=%-.5lf\n", presp.c_str(), transmission_b) ;
 						fprintf( file, "%s exptime_b=%-.3lf [s]\n", presp.c_str(), exptime_b) ;
 						fprintf( file, "%s\n", presp.c_str()) ;
 					}
@@ -2463,7 +2701,7 @@ class fit2dcorr
 				for ( k=0; k<ecarg; ++k) { fprintf ( file, "%s ", evarg[k]) ; }
 				fprintf ( file, "\n%s\n", presp.c_str()) ;
 
-				fprintf ( file, "%s Fit2D called with: %s\n", presp.c_str(), fit2dcalllist[i].c_str()) ;
+				fprintf ( file, "%s Fit2D called with: %s\n", presp.c_str(), fit2dcall_list[i].c_str()) ;
 				fprintf ( file, "%s\n", presp.c_str()) ;
 
 				fprintf( file, "%s     %s%s       %s%s      %sd%s\n", presp.c_str(), exp_str, x_scale.c_str(), exp_str, y_scale.c_str(), exp_str, y_scale.c_str()) ;
@@ -2478,13 +2716,13 @@ class fit2dcorr
 					/* first column */
 					while (*strptr1 == ' ') { ++strptr1 ; }
 
-					if ( ( strptr2 = strchr( strptr1, ' ')) == NULL ) { fprintf( stdout, "Error: Expected two columns in file %s, only one is present. Exit.\n", fit2dfilelist[i].c_str()) ; exit(1) ; }
+					if ( ( strptr2 = strchr( strptr1, ' ')) == NULL ) { fprintf( stdout, "Error: Expected two columns in file %s, only one is present. Exit.\n", fit2dfile_list[i].c_str()) ; exit(1) ; }
 
 					n = (unsigned int)(strptr2-strptr1) ;
 					memmove( data, strptr1, n) ;
 					data[n] = 0 ;
 					if ( is_numeric(data) ) { x = strtod( data, NULL) ; }
-					else { fprintf( stdout, "Error: Found entry in the first column in file %s with non-numeric type. Exit.\n", fit2dfilelist[i].c_str()) ; exit(1) ; }
+					else { fprintf( stdout, "Error: Found entry in the first column in file %s with non-numeric type. Exit.\n", fit2dfile_list[i].c_str()) ; exit(1) ; }
 
 					/* q-scale default is Q [1/nm] */
 					x *= x_scale_fac ;
@@ -2499,7 +2737,7 @@ class fit2dcorr
 					memmove( data, strptr1, n) ;
 					data[n] = 0 ;
 					if ( is_numeric(data) ) { y = strtod( data, NULL) ; }
-					else { fprintf( stdout, "Error: Found entry in the second column in file %s with non-numeric type. Exit.\n", fit2dfilelist[i].c_str()) ; exit(1) ; }
+					else { fprintf( stdout, "Error: Found entry in the second column in file %s with non-numeric type. Exit.\n", fit2dfile_list[i].c_str()) ; exit(1) ; }
 
 					fprintf( file, "%.8E %.8E %.8E\n", x, y, -1.0) ;
 				}
@@ -2590,7 +2828,7 @@ class fit2dcorr
 		}
 
 		/* 
-		   fit2dfilelist, and other class members are always shared
+		   fit2dfile_list, and other class members are always shared
 		   however append operations on vectors should be not be applied to avoid race conditions !!!
 
 		   tests with serialized runs and parallelized runs (-openmp flag) give exactly the same results
@@ -2609,13 +2847,13 @@ class fit2dcorr
 
 			/* run Fit2D in batch mode */
  			#pragma omp for schedule(static)
-			for ( i=0; i<fit2dfilelist.size(); ++i)
+			for ( i=0; i<fit2dfile_list.size(); ++i)
 			{
 				/* resize y to avoid potential race conditions with append */
 				if ( ring_profile_isdef ) { y.resize( azi_bins ) ; }
 				else { y.resize( rad_bins ) ; }
 
-				read_tif( fit2dfilelist[i], raw_image, azi_bins, rad_bins) ;
+				read_tif( fit2dfile_list[i], raw_image, azi_bins, rad_bins) ;
 
 				/*
 				transform raw image such that is has the same shape and indexing scheme as displayed in Fit2D,
@@ -2688,8 +2926,8 @@ class fit2dcorr
 
 
 				/* replace *.tif(f) with strsuffix for current filename */
-				pos = filelist[i].find(".") ;
-				filename = filelist[i].substr( 0, pos) + strsuffix ; 
+				pos = file_list[i].find(".") ;
+				filename = file_list[i].substr( 0, pos) + strsuffix ; 
 
 
 				if ( ( file = fopen( filename.c_str(), "w")) == NULL) { fprintf( stdout, "Error: Cannot write to file %s. Exit.\n", filename.c_str()) ; exit(1) ; }
@@ -2794,14 +3032,16 @@ class fit2dcorr
 				fprintf( file, "%s pol_fac=%-.3lf\n", presp.c_str(), pol_fac) ;
 
 				fprintf( file, "%s\n", presp.c_str()) ;
-				fprintf( file, "%s in=%s\n", presp.c_str(), filelist[i].c_str()) ;
-				fprintf( file, "%s out=%s\n", presp.c_str(), fit2dfilelist[i].c_str()) ;
+				fprintf( file, "%s in=%s\n", presp.c_str(), file_list[i].c_str()) ;
+				fprintf( file, "%s out=%s\n", presp.c_str(), fit2dfile_list[i].c_str()) ;
 				if ( abs_units_isdef )
 				{
-					fprintf( file, "%s cf=%-.3lf [1/cps]\n", presp.c_str(), cf) ;
-					fprintf( file, "%s thickness=%-.3lf [cm]\n", presp.c_str(), thicknesslist[i]) ;
-					fprintf( file, "%s transmission=%-.4lf\n", presp.c_str(), transmissionlist[i]) ;
-					fprintf( file, "%s exptime=%-.3lf [s]\n", presp.c_str(), exptimelist[i]) ;
+					fprintf( file, "%s cf=%-.3lf [1/cps]", presp.c_str(), cf_list[i]) ;
+					if ( cf_isauto ) { fprintf( file, " ( phi0=%d [cps] )", phi0_list[i]) ; }
+					fprintf( file, "\n") ;
+					fprintf( file, "%s thickness=%-.3lf [cm]\n", presp.c_str(), thickness_list[i]) ;
+					fprintf( file, "%s transmission=%-.5lf\n", presp.c_str(), transmission_list[i]) ;
+					fprintf( file, "%s exptime=%-.3lf [s]\n", presp.c_str(), exptime_list[i]) ;
 					fprintf( file, "%s\n", presp.c_str()) ;
 				}
 				if ( subtract_isdef )
@@ -2810,8 +3050,11 @@ class fit2dcorr
 					fprintf( file, "%s vol_fract_b=%-.3lf\n", presp.c_str(), vol_fract_b) ;
 					if ( abs_units_isdef )
 					{
+						fprintf( file, "%s cf_b=%-.3lf [1/cps]", presp.c_str(), cf_b) ;
+						if ( cf_b_isauto ) { fprintf( file, " ( phi0_b=%d [cps] )", phi0_b) ; }
+						fprintf( file, "\n") ;
 						fprintf( file, "%s thickness_b=%-.3lf [cm]\n", presp.c_str(), thickness_b) ;
-						fprintf( file, "%s transmission_b=%-.4lf\n", presp.c_str(), transmission_b) ;
+						fprintf( file, "%s transmission_b=%-.5lf\n", presp.c_str(), transmission_b) ;
 						fprintf( file, "%s exptime_b=%-.3lf [s]\n", presp.c_str(), exptime_b) ;
 						fprintf( file, "%s\n", presp.c_str()) ;
 					}
@@ -2830,7 +3073,7 @@ class fit2dcorr
 				for ( k=0; k<ecarg; ++k) { fprintf( file, "%s ", evarg[k]) ; }
 				fprintf( file, "\n%s\n", presp.c_str()) ;
 
-				fprintf( file, "%s Fit2D called with: %s\n", presp.c_str(), fit2dcalllist[i].c_str()) ;
+				fprintf( file, "%s Fit2D called with: %s\n", presp.c_str(), fit2dcall_list[i].c_str()) ;
 				fprintf( file, "%s\n", presp.c_str()) ;
 
 
@@ -2858,7 +3101,7 @@ class fit2dcorr
 				/* remove temporary *.tif-files */
 				if ( !verbose_isdef ) 
 				{
-					if ( remove( fit2dfilelist[i].c_str() ) != 0 ) {fprintf( stdout, "Error: Could not delete file %s. Exit.\n", fit2dfilelist[i].c_str()) ; exit(1) ; }
+					if ( remove( fit2dfile_list[i].c_str() ) != 0 ) {fprintf( stdout, "Error: Could not delete file %s. Exit.\n", fit2dfile_list[i].c_str()) ; exit(1) ; }
 				}
 			}
 
@@ -2912,7 +3155,7 @@ class fit2dcorr
 
 
 		/* 
-		   fileist, thicknesslist, transmissionlist, exptimelist and other class members are always shared
+		   fileist, thickness_list, transmission_list, exptime_list and other class members are always shared
 		   however append operations on vectors should be not be applied to avoid race conditions !!!
 
 		   tests with serialized runs and parallelized runs (-openmp flag) give exactly the same results
@@ -2921,10 +3164,10 @@ class fit2dcorr
 		{
 			/* batch mode */
 			#pragma omp for schedule(static)
-			for ( i=0; i<filelist.size(); ++i)
+			for ( i=0; i<file_list.size(); ++i)
 			{
 				/* filename handling */
-				strdummy = filelist[i].substr( 0, filelist[i].find(".") ) ;
+				strdummy = file_list[i].substr( 0, file_list[i].find(".") ) ;
 
 				/* define N and N_del depending on err and subtract_isdef */
 				N = 1 ;
@@ -3080,25 +3323,25 @@ class fit2dcorr
 					*/
 					if ( abs_units_isdef )
 					{
-						get_abs_intensity( y[0], thicknesslist[i], transmissionlist[i], exptimelist[i]) ;
+						get_abs_intensity( y[0], cf_list[i], thickness_list[i], transmission_list[i], exptime_list[i]) ;
 						if ( err == 1 )
 						{
-							get_abs_intensity( y[1], thicknesslist[i], transmissionlist[i], exptimelist[i]) ;
+							get_abs_intensity( y[1], cf_list[i], thickness_list[i], transmission_list[i], exptime_list[i]) ;
 						}
 
 						if ( subtract_isdef )
 						{
 							if ( err == 0 )
 							{
-								get_abs_intensity( y[1], thickness_b, transmission_b, exptime_b) ;
+								get_abs_intensity( y[1], cf_b, thickness_b, transmission_b, exptime_b) ;
 								y[0] = y[0] - vol_fract_b * y[1] ;
 							}
 							else
 							{
-								get_abs_intensity( y[2], thickness_b, transmission_b, exptime_b) ;
+								get_abs_intensity( y[2], cf_b, thickness_b, transmission_b, exptime_b) ;
 								y[0] = y[0] - vol_fract_b * y[2] ;
 
-								get_abs_intensity( y[3], thickness_b, transmission_b, exptime_b) ;
+								get_abs_intensity( y[3], cf_b, thickness_b, transmission_b, exptime_b) ;
 								y[1] = sqrt( y[1] * y[1] + vol_fract_b * vol_fract_b * y[3] * y[3] ) ;
 							}
 						}
@@ -3140,7 +3383,7 @@ class fit2dcorr
 
 				if ( !verbose_isdef ) 
 				{
-					if ( ( i == filelist.size() - 1 ) && subtract_isdef ) { N_del *= 2 ; }
+					if ( ( i == file_list.size() - 1 ) && subtract_isdef ) { N_del *= 2 ; }
 
 					for ( j=1; j<=N_del; ++j)
 					{
@@ -3192,7 +3435,7 @@ class fit2dcorr
 // 			uint16 bps, spp, bpp, photo, int_float ;
 // 
 // 			/* TIFFTAG_BITSPERSAMPLE
-// 			   32 bit tif for Pilatus and for Fit2D exported tif's
+// 			   32 bit tif for PILATUS and for Fit2D exported tif's
 // 			   http://www.awaresystems.be/imaging/tiff/tifftags/bitspersample.html
 // 			*/
 // 			TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bps) ;
@@ -3211,7 +3454,7 @@ class fit2dcorr
 // 			/* 
 // 			   TIFFTAG_PHOTOMETRIC
 // 			   0 = WhiteIsZero. For bilevel and grayscale images: 0 is imaged as white. (for tif's exported from Fit2D, ???)
-// 			   1 = BlackIsZero. For bilevel and grayscale images: 0 is imaged as black. (for Pilatus tif)
+// 			   1 = BlackIsZero. For bilevel and grayscale images: 0 is imaged as black. (for PILATUS tif)
 // 			   ...
 // 			   http://www.awaresystems.be/imaging/tiff/tifftags/photometricinterpretation.html
 // 			*/
@@ -3220,7 +3463,7 @@ class fit2dcorr
 // 			/* 
 // 			   TIFFTAG_SAMPLEFORMAT
 // 			   1 = unsigned integer data
-// 			   2 = two's complement signed integer data  (for Pilatus tif)
+// 			   2 = two's complement signed integer data  (for PILATUS tif)
 // 			   3 = IEEE floating point data (for float tif's exported from Fit2D)
 // 			   4 = undefined data format 
 // 			   ...
@@ -3361,13 +3604,13 @@ class fit2dcorr
 			uint16 bps, spp, /* bpp,*/ photo, int_float ;
 
 			/* TIFFTAG_BITSPERSAMPLE
-			   32 bit tif for Pilatus and for Fit2D exported tif's
+			   32 bit tif for PILATUS and for Fit2D exported tif's
 			   http://www.awaresystems.be/imaging/tiff/tifftags/bitspersample.html
 			*/
 			TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bps) ;
 
 			/* TIFFTAG_SAMPLESPERPIXEL, 
-			   not provided in the tif-files from Pilatus and Fit2D -> default value 0 is returned
+			   not provided in the tif-files from PILATUS and Fit2D -> default value 0 is returned
 			   generally:
 			   1 for grayscale, b/w, Hue
 			   3 for RGB
@@ -3380,7 +3623,7 @@ class fit2dcorr
 			/* 
 			   TIFFTAG_PHOTOMETRIC
 			   0 = WhiteIsZero. For bilevel and grayscale images: 0 is imaged as white. (for tif's exported from Fit2D, ???)
-			   1 = BlackIsZero. For bilevel and grayscale images: 0 is imaged as black. (for Pilatus tif)
+			   1 = BlackIsZero. For bilevel and grayscale images: 0 is imaged as black. (for PILATUS tif)
 			   ...
 			   http://www.awaresystems.be/imaging/tiff/tifftags/photometricinterpretation.html
 			*/
@@ -3389,7 +3632,7 @@ class fit2dcorr
 			/* 
 			   TIFFTAG_SAMPLEFORMAT
 			   1 = unsigned integer data
-			   2 = two's complement signed integer data  (for Pilatus tif)
+			   2 = two's complement signed integer data  (for PILATUS tif)
 			   3 = IEEE floating point data (for float tif's exported from Fit2D)
 			   4 = undefined data format 
 			   ...
@@ -3433,7 +3676,7 @@ class fit2dcorr
 		   without using Fit2D, not yet implemented
 
 		   necessary steps:
-		   read (Pilatus) tiff-files -> read_Pilatus_tiff()
+		   read (PILATUS) tiff-files -> read_PILATUS_tiff()
 		   read mask -> read_Fit2D_mask()
 		   perform azimuthal average and generate errorbars -> azimuthal_averaging()
 		   absolute intensity calibration,
@@ -3443,10 +3686,10 @@ class fit2dcorr
 
 
 	/*
-	   read Pilatus tiff-file
+	   read PILATUS tiff-file
 	*/
 	template <class T>
-	void read_Pilatus_tiff( string filename, T* buf, unsigned int height, unsigned int width)
+	void read_PILATUS_tiff( string filename, T* buf, unsigned int height, unsigned int width)
 	{
 
 	}
