@@ -92,6 +92,7 @@ class fit2dcorr
 	/* using a calibration factor for a specific instrument setting; sample thickness, transmission and exposure time */
 	bool abs_units_isdef ;  /* -abs_units */ 
 	bool cf_isauto, thickness_isauto, transmission_isauto, exptime_isauto ; /* flags if parameters have have been set */
+	bool cf_is_i0, cf_b_is_i0 ;
 	double cf_def, thickness_def, transmission_def, exptime_def ; /* values used for all files */
 	vector<double> cf_list ; /* list of calibration factors [1/cps] */
 	vector<double> thickness_list ; /* list of thicknesses [cm] */
@@ -221,7 +222,11 @@ class fit2dcorr
 					cf_list.push_back( 1.0e6 * ( sdd * sdd ) / (double) phi0_list[i] / ( pix_size[0] * pix_size[1] ) ) ;
 				}
 			}
-			else { cf_list.push_back( cf_def ) ; }
+			else
+			{
+				if ( cf_is_i0 ) { cf_list.push_back( 1.0e6 * ( sdd * sdd ) / cf_def / ( pix_size[0] * pix_size[1] ) ) ; }
+				else { cf_list.push_back( cf_def ) ; }
+			}
 
 			if ( thickness_isauto )
 			{
@@ -238,7 +243,6 @@ class fit2dcorr
 				}
 			}
 			else { thickness_list.push_back( thickness_def ) ; }
-
 
 			if ( transmission_isauto )
 			{
@@ -267,7 +271,6 @@ class fit2dcorr
 				}
 			}
 			else { exptime_list.push_back( exptime_def ) ; }
-
 		}
 
 		if ( subtract_isdef )
@@ -289,8 +292,11 @@ class fit2dcorr
 					cf_b = 1.0e6 * ( sdd * sdd ) / (double) phi0_b / ( pix_size[0] * pix_size[1] ) ;
 				}
 			}
-			else { cf_b = cf_b_def ; }
-
+			else
+			{
+				if ( cf_b_is_i0 ) { cf_b = 1.0e6 * ( sdd * sdd ) / cf_b_def / ( pix_size[0] * pix_size[1] )  ; }
+				else { cf_b = cf_b_def ; }
+			}
 
 			if ( thickness_b_isauto )
 			{
@@ -512,6 +518,9 @@ class fit2dcorr
 									     -abs_units auto 0.15 auto auto auto 0.15 auto auto
 									     -abs_units auto auto auto auto auto auto auto auto
 
+			-cf_is_i0					CF value for sample files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
+			-cf_b_is_i0					CF value for backgr files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
+
 			-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
 
 			-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
@@ -553,7 +562,7 @@ class fit2dcorr
 
 			-openmp						OpenMP parallelization support, by default off
 
-			-v						verbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analyis / debugging
+			-v						verbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analysis / debugging
 
 			-mac <macrofile>				user-defined Fit2D macro-file, for modes av == 0 & 1 only
 
@@ -677,6 +686,9 @@ class fit2dcorr
 		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units auto 0.15 auto auto auto 0.15 auto auto\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     -abs_units auto auto auto auto auto auto auto auto\n") ;
 		fprintf( stdout, "\n") ;
+		fprintf( stdout, "\t-cf_is_i0\t\t\t\t\tCF value for sample files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF\n") ;
+		fprintf( stdout, "\t-cf_b_is_i0\t\t\t\t\tCF value for backgr files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF\n") ;
+		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-qscale <Qscale>\t\t\t\tQ_nm-1 for \"Q [1/nm]\" (default), Q_A-1 for \"Q [1/A]\", s_nm-1 for \"s [1/nm]\", s_A-1 for \"s [1/A]\"\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-l <ranges>\t\t\t\t\tlist(s) of lines to skip in all averaged files, multiple instances are possible !\n") ;
@@ -718,7 +730,7 @@ class fit2dcorr
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-openmp\t\t\t\t\t\tOpenMP parallelization support, by default off\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-v\t\t\t\t\t\tverbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analyis / debugging\n") ;
+		fprintf( stdout, "\t-v\t\t\t\t\t\tverbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analysis / debugging\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-mac <macrofile>\t\t\t\tuser-defined Fit2D macro-file, for modes av == 0 & 1 only\n") ;
 		fprintf( stdout, "\n") ;
@@ -893,12 +905,14 @@ class fit2dcorr
 
 		abs_units_isdef = false ;
 		cf_isauto = false ;
+		cf_is_i0 = false ;
 		thickness_isauto = false ;
 		transmission_isauto = false ;
 		exptime_isauto = false ;
 
 		subtract_isdef = false ;
 		cf_b_isauto = false ;
+		cf_b_is_i0 = false ;
 		thickness_b_isauto = false ;
 		transmission_b_isauto = false ;
 		exptime_b_isauto = false ;
@@ -1126,6 +1140,17 @@ class fit2dcorr
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
+					case 'c':
+						if ( !strcmp( varg[i], "-cf_is_i0") )
+						{
+							cf_is_i0 = true ;
+						}
+						else if ( !strcmp( varg[i], "-cf_b_is_i0") )
+						{
+							cf_b_is_i0 = true ;
+						}
+						else { fit2dcorr_error(3) ; }
+						break ;
 					/* -err */
 					case 'e':
 						if ( !strcmp(varg[i], "-err") )
@@ -1150,7 +1175,7 @@ class fit2dcorr
 									/* check if file exists annd add to file_list */
 									if ( ( file = fopen( varg[i], "r")) == NULL)
 									{
-										fprintf( stdout, "Error: File %s in a +f option does not exit. Exit.\n", varg[i]) ;
+										fprintf( stdout, "Error: File %s in a +f option does not exist. Exit.\n", varg[i]) ;
 										exit(1) ;
 									}
 									fclose(file) ;
