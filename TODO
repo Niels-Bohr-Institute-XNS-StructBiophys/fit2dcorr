@@ -1,0 +1,65 @@
+-problem when tiff file name has extra "." in it -> _avg not found, file end clipping
+
+
+
+
+-still problem when subtracting with too early deletion of water water file, such that erros occurs
+
+	fit2dcorr +mask reduction_20180517_Rockwool/masks/mask_2mm_offcen.msk +bc 66.5 542.0 +sdd 111.7 +lambda auto +pix_size auto +f im_0046287_caz.tiff im_0046288_caz.tiff im_0046289_caz.tiff im_0046290_caz.tiff im_0046299_caz.tiff im_0046300_caz.tiff im_0046301_caz.tiff im_0046302_caz.tiff im_0046309_caz.tiff im_0046310_caz.tiff im_0046311_caz.tiff im_0046312_caz.tiff im_0046317_caz.tiff im_0046318_caz.tiff im_0046319_caz.tiff im_0046326_caz.tiff im_0046327_caz.tiff im_0046341_caz.tiff im_0046342_caz.tiff im_0046347_caz.tiff im_0046348_caz.tiff im_0046353_caz.tiff im_0046354_caz.tiff im_0046360_caz.tiff im_0046361_caz.tiff im_0046365_caz.tiff im_0046370_caz.tiff im_0046325_caz.tiff im_0046340_caz.tiff im_0046346_caz.tiff im_0046352_caz.tiff im_0046371_caz.tiff -subtract im_0046292_caz.tiff 1.0 -abs_units auto 0.150 auto auto auto 0.150 auto auto -qscale Q_A-1 -nonnegative -rad_bins 250 -openmp
+---> 4 files left, looks like last thread has problem ...
+
+what worked fine:
+	fit2dcorr +mask reduction_20180517_Rockwool/masks/mask_2mm_cen.msk +bc 247.3 271.4 +sdd 1011.4 +lambda auto +pix_size auto +f im_0046293_caz.tiff im_0046294_caz.tiff im_0046295_caz.tiff im_0046296_caz.tiff im_0046304_caz.tiff im_0046305_caz.tiff im_0046306_caz.tiff im_0046307_caz.tiff im_0046313_caz.tiff im_0046314_caz.tiff im_0046315_caz.tiff im_0046316_caz.tiff im_0046321_caz.tiff im_0046322_caz.tiff im_0046323_caz.tiff im_0046330_caz.tiff im_0046331_caz.tiff im_0046344_caz.tiff im_0046345_caz.tiff im_0046350_caz.tiff im_0046351_caz.tiff im_0046356_caz.tiff im_0046357_caz.tiff im_0046362_caz.tiff im_0046363_caz.tiff im_0046366_caz.tiff im_0046372_caz.tiff im_0046329_caz.tiff im_0046343_caz.tiff im_0046349_caz.tiff im_0046355_caz.tiff im_0046373_caz.tiff -subtract im_0046298_caz.tiff 1.0 -abs_units auto 0.150 auto auto auto 0.150 auto auto -qscale Q_A-1 -nonnegative -rad_bins 250 -openmp
+
+
+
+
+postprocessing with WIRebin for log binning
+
+
+option to
+copy Meas.Description (sample info) to chi file if in SAXSLAB xml header
+copy other setup params from xml header such as hg/vg* hp/vp* det*
+
+option to calc dQ from slits and collimation dist etc (must be provided)
+
+
+-enable again 2D subtraction mode, allowing lower errorbars
+	-integrate both to mode 0 (CAKE INTEGRATE) and 1 (STANDARD INTEGRATE)
+	-req. modified fit2d macro again to todo 2D scaling and subtraction
+	-errorbars?
+	-maybe with macro subtract, then average w/ and at a second call wo/ int conservation to get error bars (what about if values neg? if average values neg -> sum will be neg too -> fine)
+	->scaling also fine, should not be included in error propagation anymore
+	->anyway two steps required to get 2x chi and thereof calc the errorbars (4 for current approach)
+
+
+
+-realize option to pipe files from ls / grep into fitdcorr call at +f
+-maybe also allow pattern expansion in +f files {,,}, [,-,], * etc, tricky, better use piping them
+
+
+	using grep with xargs and placeholder {} it works when using absolute path to fit2dcorr executable is provided 
+
+	grep -l "Cap G.*MAXS 22" *.tiff | xargs -I {} /home/msmile/Seafile/MartinS/projects/fit2dcorr/fit2dcorr +mask reduction_20180209_Estrid_og_Isabella_KU_Farma/masks/mask_2mm_offcen_22.msk +bc 66.172 541.718 +sdd 419.5 +lambda auto +pix_size auto +f {} -abs_units auto 0.1237 auto auto -qscale Q_A-1 -nonnegative -rad_bins 250
+
+	grep -l "Cap G.*MAXS 22" *.tiff | xargs -I {} ls -l {}
+
+
+	note that xargs does not support bash aliases
+	https://stackoverflow.com/questions/513611/xargs-doesnt-recognize-bash-aliases
+
+
+
+-push forward "2" mode
+	-read fit2d masks
+	-create binning algorithm and geometry
+	-apply corrections (flatfield, detector, ...)
+
+
+
+
+
+
+grep -l "Pos.*SAXS 23" *.tiff | awk '{ ORS=" "; print; }'
+
+grep -l "436" *.tiff | xargs grep -l "j=0" | xargs grep -l "i=0" | sed -e 's/.tiff/.chi/' | xargs xmgrace -legend load -log xy
