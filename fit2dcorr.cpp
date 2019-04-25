@@ -1548,11 +1548,22 @@ class fit2dcorr
 			*/
 			char buf[defsigns] ;
 			size_t bufsize = sizeof(buf) ;
+
+			/*
+			Which Fit2D version to be chosen?
+
+			-for av == 0 && rad_bins  > 1 -> use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE )
+			-for av == 0 && rad_bins == 1 -> use Fit2D v18 since v12 produces wrong ring_profile when using azimuthal maps (CAKE -> INTEGRATE )
+
+			-Fit2D v12 uses correctly the provided rad_st in the azi-mapping, for v18 no matter what rad_st is, the map always start at rad = 0.0, thus for av == 0 and rad_bins > 0 the here calculated Q-scale (via min_Q and max_Q and rad_bins) is incorrect for v18 since min_Q should then be 0.0 as in the wrong map
+			-One could also think of using v18 also for rad_bins > 1 by setting min_Q to 0.0 and filter out the I=0 at low Q (r<rad_st), however then the fnal rad_bins would be smaller as intended
+
+			-All tests on linux with Fit2D linux versions.
+			 */
+
 			#ifdef __WINDOWS__
-				/* for av == 0 use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE ) */
-				// { fit2dfile = "fit2d_12_077_i686_WXP.exe" ; }
-				// however CAKE -> INTEGRATE in fit2d and fit2dcorr w/ av = 0 works only properly when using v18 and not v12 (tested on linux)
-				if ( av == 0 ) { fit2dfile = "fit2d_beta_18_002_Windows7_intel32.exe" ; }
+				if ( av == 0 && rad_bins > 1 ) { fit2dfile = "fit2d_12_077_i686_WXP.exe" ; }
+				if ( av == 0 && rad_bins == 1 ) { fit2dfile = "fit2d_beta_18_002_Windows7_intel32.exe" ; }
 				else if ( av == 1 ) { fit2dfile = "fit2d_beta_18_002_Windows7_intel32.exe" ; }
 
 				/* 
@@ -1590,11 +1601,8 @@ class fit2dcorr
 				folderbind = "\\" ;
 			#elif __APPLE__
 				/* not tested yet */
-
-				/* for av == 0 use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE ) */
-				// { fit2dfile = "fit2d_12_080_G3_MacOSX10.3.5" ; }
-				// however CAKE -> INTEGRATE in fit2d and fit2dcorr w/ av = 0 works only properly when using v18 and not v12 (tested on linux)
-				if ( av == 0 ) { fit2dfile = "fit2d_beta_18_002_MacOSX_7_5_intel64" ; }
+				if ( av == 0 && rad_bins > 1 ) { fit2dfile = "fit2d_12_080_G3_MacOSX10.3.5" ; }
+				else if ( av == 0 && rad_bins == 1 ) { fit2dfile = "fit2d_beta_18_002_MacOSX_7_5_intel64" ; }
 				else if ( av == 1 ) { fit2dfile = "fit2d_beta_18_002_MacOSX_7_5_intel64" ; }
 
 				if ( _NSGetExecutablePath( buf, &bufsize) != 0 )
@@ -1605,10 +1613,8 @@ class fit2dcorr
 				cmdbind = "-" ;
 				folderbind = "/" ;
 			#elif __linux__
-				/* for av == 0 use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE ) */
-				// { fit2dfile = "fit2d_12_081_i686_linux2.4.20" ; }
-				// however CAKE -> INTEGRATE in fit2d and fit2dcorr w/ av = 0 works only properly when using v18 and not v12 (tested on linux)
-				if ( av == 0 ) { fit2dfile = "fit2d_beta_18_002_Debian7_intel64" ; }
+				if ( av == 0 && rad_bins > 1 ) { fit2dfile = "fit2d_12_081_i686_linux2.4.20" ; }
+				else if ( av == 0 && rad_bins == 1 ) { fit2dfile = "fit2d_beta_18_002_Debian7_intel64" ; }
 				else if ( av == 1 ) { fit2dfile = "fit2d_beta_18_002_Debian7_intel64" ; }
 
 				ssize_t len = readlink("/proc/self/exe", buf, bufsize-1) ;
@@ -2071,12 +2077,12 @@ class fit2dcorr
 		/*
 			now all of the following class-wide variables are set either with default values, by input or are derived automatically
 
-			sdd, lambda, bc[2], pix_size[2], maskfile, file_list
-			macrofile, array_size[2]
+			sdd [mm], lambda [Å], bc[2] [pix], pix_size[2] [µm], maskfile, file_list
+			macrofile, array_size[2] [-]
 			
-			azi_st, azi_end, azi_bins
-			pix_x_r_out, pix_y_r_out, rad_st, rad_end, rad_bins, max_2theta, min_Q, max_Q
-			pol_fac
+			azi_st [deg], azi_end [deg], azi_bins [-]
+			pix_x_r_out [pix], pix_y_r_out [pix], rad_st [pix], rad_end [pix], rad_bins [-], max_2theta [deg], min_Q [1/nm], max_Q [1/nm]
+			pol_fac [-]
 			x_scale, x_scale_fac, y_scale
 			
 			optionally also:
@@ -2685,9 +2691,22 @@ class fit2dcorr
 				fprintf( file, "%s sdd=%-.1lf [mm]\n", presp.c_str(), sdd) ;
 				fprintf( file, "%s lambda=%-.4lf [Angstroem]\n", presp.c_str(), lambda) ;
 				fprintf( file, "%s pix_size=%-.1lf x %-.1lf [microns x microns]\n", presp.c_str(), pix_size[0], pix_size[1]) ;
-				fprintf( file, "%s max_2theta=%-.4lf [deg]\n", presp.c_str(), max_2theta) ;
-				fprintf( file, "%s rad_bins=%d\n", presp.c_str(), rad_bins) ;
 				fprintf( file, "%s array_size=%d x %d [pix x pix]\n", presp.c_str(), array_size[0], array_size[1]) ;
+
+				fprintf( file, "%s pix_x_r_out=%-.1lf [pix]\n", presp.c_str(), pix_x_r_out) ;
+				fprintf( file, "%s pix_y_r_out=%-.1lf [pix]\n", presp.c_str(), pix_y_r_out) ;
+
+				fprintf( file, "%s min_2theta=%-.4lf [deg]\n", presp.c_str(), min_2theta) ;
+				fprintf( file, "%s max_2theta=%-.4lf [deg]\n", presp.c_str(), max_2theta) ;
+				fprintf( file, "%s rad_max=%-.1lf [pix]\n", presp.c_str(), rad_max) ;
+
+				fprintf( file, "%s rad_end=%-.1lf [pix]\n", presp.c_str(), rad_end) ;
+				fprintf( file, "%s rad_bins=%d\n", presp.c_str(), rad_bins) ;
+
+				fprintf( file, "%s min_Q=%-.4lf [1/nm]\n", presp.c_str(), min_Q) ;
+				fprintf( file, "%s max_Q=%-.4lf [1/nm]\n", presp.c_str(), max_Q) ;
+				fprintf( file, "%s x_scale_fac=%-.4lf\n", presp.c_str(), x_scale_fac) ;
+
 				fprintf( file, "%s pol_fac=%-.3lf\n", presp.c_str(), pol_fac) ;
 				fprintf( file, "%s\n", presp.c_str()) ;
 				fprintf( file, "%s in=%s\n", presp.c_str(), file_list[i].c_str()) ;
@@ -2836,6 +2855,8 @@ class fit2dcorr
 
 			cause indexing is 0-based here, use k + 0.5 instead !!!
 			by default min_Q is 0.0 and max_Q given via rad_max, if it is not overridden by the user
+
+			both min_Q and max_Q and dd are in units of [1/nm]
 			*/
 			dd = ( max_Q - min_Q ) / ( (double)rad_bins ) ;
 			for ( k=0; k<rad_bins; ++k)
@@ -3051,15 +3072,29 @@ class fit2dcorr
 				fprintf( file, "%s bcy=%-.1lf [pix]\n", presp.c_str(), bc[1]) ;
 				fprintf( file, "%s sdd=%-.1lf [mm]\n", presp.c_str(), sdd) ;
 				fprintf( file, "%s lambda=%-.4lf [Angstroem]\n", presp.c_str(), lambda) ;
+
 				fprintf( file, "%s pix_size=%-.1lf x %-.1lf [microns x microns]\n", presp.c_str(), pix_size[0], pix_size[1]) ;
+				fprintf( file, "%s array_size=%d x %d [pix x pix]\n", presp.c_str(), array_size[0], array_size[1]) ;
+
+				fprintf( file, "%s pix_x_r_out=%-.1lf [pix]\n", presp.c_str(), pix_x_r_out) ;
+				fprintf( file, "%s pix_y_r_out=%-.1lf [pix]\n", presp.c_str(), pix_y_r_out) ;
+
+				fprintf( file, "%s min_2theta=%-.4lf [deg]\n", presp.c_str(), min_2theta) ;
+				fprintf( file, "%s max_2theta=%-.4lf [deg]\n", presp.c_str(), max_2theta) ;
+				fprintf( file, "%s rad_max=%-.1lf [pix]\n", presp.c_str(), rad_max) ;
+
 				fprintf( file, "%s rad_st=%-.1lf [pix]\n", presp.c_str(), rad_st) ;
 				fprintf( file, "%s rad_end=%-.1lf [pix]\n", presp.c_str(), rad_end) ;
 				fprintf( file, "%s rad_bins=%d\n", presp.c_str(), rad_bins) ;
-				fprintf( file, "%s max_2theta=%-.4lf [deg]\n", presp.c_str(), max_2theta) ;
+
+				fprintf( file, "%s min_Q=%-.4lf [1/nm]\n", presp.c_str(), min_Q) ;
+				fprintf( file, "%s max_Q=%-.4lf [1/nm]\n", presp.c_str(), max_Q) ;
+				fprintf( file, "%s x_scale_fac=%-.4lf\n", presp.c_str(), x_scale_fac) ;
+
 				fprintf( file, "%s azi_st=%-.1lf [deg]\n", presp.c_str(), azi_st) ;
 				fprintf( file, "%s azi_end=%-.1lf [deg]\n", presp.c_str(), azi_end) ;
 				fprintf( file, "%s azi_bins=%d\n", presp.c_str(), azi_bins) ;
-				fprintf( file, "%s array_size=%d x %d [pix x pix]\n", presp.c_str(), array_size[0], array_size[1]) ;
+
 				fprintf( file, "%s pol_fac=%-.3lf\n", presp.c_str(), pol_fac) ;
 
 				fprintf( file, "%s\n", presp.c_str()) ;
