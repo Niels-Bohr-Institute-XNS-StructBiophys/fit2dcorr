@@ -1550,7 +1550,9 @@ class fit2dcorr
 			size_t bufsize = sizeof(buf) ;
 			#ifdef __WINDOWS__
 				/* for av == 0 use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE ) */
-				if ( av == 0 ) { fit2dfile = "fit2d_12_077_i686_WXP.exe" ; }
+				// { fit2dfile = "fit2d_12_077_i686_WXP.exe" ; }
+				// however CAKE -> INTEGRATE in fit2d and fit2dcorr w/ av = 0 works only properly when using v18 and not v12 (tested on linux)
+				if ( av == 0 ) { fit2dfile = "fit2d_beta_18_002_Windows7_intel32.exe" ; }
 				else if ( av == 1 ) { fit2dfile = "fit2d_beta_18_002_Windows7_intel32.exe" ; }
 
 				/* 
@@ -1590,7 +1592,9 @@ class fit2dcorr
 				/* not tested yet */
 
 				/* for av == 0 use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE ) */
-				if ( av == 0 ) { fit2dfile = "fit2d_12_080_G3_MacOSX10.3.5" ; }
+				// { fit2dfile = "fit2d_12_080_G3_MacOSX10.3.5" ; }
+				// however CAKE -> INTEGRATE in fit2d and fit2dcorr w/ av = 0 works only properly when using v18 and not v12 (tested on linux)
+				if ( av == 0 ) { fit2dfile = "fit2d_beta_18_002_MacOSX_7_5_intel64" ; }
 				else if ( av == 1 ) { fit2dfile = "fit2d_beta_18_002_MacOSX_7_5_intel64" ; }
 
 				if ( _NSGetExecutablePath( buf, &bufsize) != 0 )
@@ -1602,7 +1606,9 @@ class fit2dcorr
 				folderbind = "/" ;
 			#elif __linux__
 				/* for av == 0 use Fit2D v12 since higher versions produce sometimes bugs when using azimuthal maps (CAKE -> INTEGRATE ) */
-				if ( av == 0 ) { fit2dfile = "fit2d_12_081_i686_linux2.4.20" ; }
+				// { fit2dfile = "fit2d_12_081_i686_linux2.4.20" ; }
+				// however CAKE -> INTEGRATE in fit2d and fit2dcorr w/ av = 0 works only properly when using v18 and not v12 (tested on linux)
+				if ( av == 0 ) { fit2dfile = "fit2d_beta_18_002_Debian7_intel64" ; }
 				else if ( av == 1 ) { fit2dfile = "fit2d_beta_18_002_Debian7_intel64" ; }
 
 				ssize_t len = readlink("/proc/self/exe", buf, bufsize-1) ;

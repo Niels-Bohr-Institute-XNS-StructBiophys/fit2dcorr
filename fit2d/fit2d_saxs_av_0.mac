@@ -33,6 +33,11 @@
 %!*\ fit2d -key -dim512x512 -fvar#SDD=292.0 -fvar#LAMBDA=1.5418 -fvar#BCX=278.0 -fvar#BCY=91.0 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -fvar#AZI_START=-90.0 -fvar#AZI_END=90.0 -ivar#AZI_BINS=180 -fvar#PIX_X_ROUT=487.0 -fvar#PIX_Y_ROUT=195.0 -fvar#RAD_IN=0.0 -fvar#RAD_OUT=230.0 -ivar#RAD_BINS=230 -fvar#POL_FAC=0.99 -svar#FILE_IN=000870.tif -svar#FILE_OUT=000870_pol.tif -svar#MASK=mask20110414.msk -svar#CONSERVINT=NO -macfit2d_saxs_av_0.mac
 %!*\ 
 %!*\ 
+%!*\ *.chi output instead of tiff-floats
+%!*\ OUTPUT
+%!*\ CHIPLOT
+%!*\ O.K.
+%!*\ 
 %!*\ 
 %!*\ BEGINNING OF GUI MACRO FILE
 %!*\ 
@@ -119,8 +124,7 @@ YES
 FACTOR
 #POL_FAC
 MAX. D-SPACING
-%!*\ #MAX_D
-20.0
+20.00000
 GEOMETRY COR.
 YES
 CORRECT PARALLAX
