@@ -1,0 +1,59 @@
+# working_directory=/home/msmile/Seafile/LINX/Projects/FP04.05_TetraPak/Milestone2_Stretching/
+# fit2dfile=/home/msmile/Seafile/MartinS/projects/fit2dcorr/fit2d/fit2d_beta_18_002_Debian7_intel64
+# macrofile=/home/msmile/Seafile/MartinS/projects/fit2dcorr/fit2d/fit2d_saxs_av_0.mac
+#
+# mask=4mm_cen.msk
+# bcx=249.6 [pix]
+# bcy=271.2 [pix]
+# sdd=2000.0 [mm]
+# lambda=1.5418 [Angstroem]
+# pix_size=172.0 x 172.0 [microns x microns]
+# rad_st=30.0 [pix]
+# rad_end=180.0 [pix]
+# rad_bins=30
+# max_2theta=0.8869 [deg]
+# azi_st=0.0 [deg]
+# azi_end=360.0 [deg]
+# azi_bins=360
+# array_size=487 x 619 [pix x pix]
+# pol_fac=0.990
+#
+# in=im_0058967_caz.tiff
+# out=im_0058967_caz_azi.tif_avg
+# skipped lines=none
+#
+# Program called with: /home/msmile/Seafile/MartinS/projects/fit2dcorr/fit2dcorr -av 0 +mask 4mm_cen.msk +seq im_0058960_caz.tiff im_0058968_caz.tiff 4 10 +f im_0058971_caz.tiff im_0058972_caz.tiff +sdd 2000 +bc 249.64 271.19 +lambda auto +pix_size auto -rad_st 30 -rad_end 180 -azi_st 0.0 -azi_end 360.0 -rad_bins 30 -azi_bins 360 
+#
+# Fit2D called with: /home/msmile/Seafile/MartinS/projects/fit2dcorr/fit2d/fit2d_beta_18_002_Debian7_intel64 -key -dim487x619 -fvar#SDD=2000.0 -fvar#LAMBDA=1.5418 -fvar#BCX=249.6 -fvar#BCY=271.2 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -fvar#POL_FAC=0.990 -svar#MASK=4mm_cen.msk -svar#CONSERVINT=NO -svar#FILE_IN=im_0058967_caz.tiff -svar#FILE_OUT=im_0058967_caz_azi.tif_avg -fvar#AZI_START=0.0 -fvar#AZI_END=360.0 -ivar#AZI_BINS=360 -fvar#PIX_X_ROUT=1.00 -fvar#PIX_Y_ROUT=619.00 -fvar#RAD_IN=30.00 -fvar#RAD_OUT=180.00 -ivar#RAD_BINS=30 -mac/home/msmile/Seafile/MartinS/projects/fit2dcorr/fit2d/fit2d_saxs_av_0.mac
+#
+#     Q [1/nm]       I [a.u.]      dI [a.u.]
+1.13901398E-01 0.00000000E+00 0.00000000E+00
+1.31422994E-01 0.00000000E+00 0.00000000E+00
+1.48944591E-01 0.00000000E+00 0.00000000E+00
+1.66466187E-01 0.00000000E+00 0.00000000E+00
+1.83987783E-01 0.00000000E+00 0.00000000E+00
+2.01509380E-01 1.46803955E+01 7.41934388E-01
+2.19030976E-01 1.23845324E+01 1.14116481E-01
+2.36552573E-01 8.09766082E+00 8.45068925E-02
+2.54074169E-01 5.81948801E+00 6.72496586E-02
+2.71595765E-01 4.43768502E+00 5.53732685E-02
+2.89117362E-01 3.54537293E+00 4.69887072E-02
+3.06638958E-01 3.02666412E+00 4.19538624E-02
+3.24160555E-01 2.81672105E+00 4.10409141E-02
+3.41682151E-01 2.63872025E+00 3.94153244E-02
+3.59203747E-01 2.60665014E+00 3.84735254E-02
+3.76725344E-01 2.68507040E+00 3.76732631E-02
+3.94246940E-01 2.78849957E+00 3.56809487E-02
+4.11768537E-01 2.89759540E+00 3.48427468E-02
+4.29290133E-01 3.07369053E+00 3.44444333E-02
+4.46811729E-01 3.21578366E+00 3.41943282E-02
+4.64333326E-01 3.35833336E+00 3.39620746E-02
+4.81854922E-01 3.31877047E+00 3.27739841E-02
+4.99376519E-01 3.37555431E+00 3.22305709E-02
+5.16898115E-01 3.30952873E+00 3.11437948E-02
+5.34419711E-01 3.26219230E+00 3.01838967E-02
+5.51941308E-01 3.07977603E+00 2.86804199E-02
+5.69462904E-01 2.92556334E+00 2.74344230E-02
+5.86984501E-01 2.77456218E+00 2.71418744E-02
+6.04506097E-01 2.52639438E+00 2.60113128E-02
+6.22027694E-01 2.31608595E+00 2.48428341E-02

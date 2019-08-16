@@ -94,7 +94,7 @@ class fit2dcorr
 	bool cf_isauto, thickness_isauto, transmission_isauto, exptime_isauto ; /* flags if parameters have have been set */
 	bool cf_is_i0, cf_b_is_i0 ;
 	double cf_def, thickness_def, transmission_def, exptime_def ; /* values used for all files */
-	vector<double> cf_list ; /* list of calibration factors [1/cps] */
+	vector<double> cf_list ; /* list of calibration factors [1/cps/sr] */
 	vector<double> thickness_list ; /* list of thicknesses [cm] */
 	vector<double> transmission_list ; /* list of transmissions */
 	vector<double> exptime_list ; /* list of exptimes [t] */
@@ -217,7 +217,7 @@ class fit2dcorr
 				}
 				else
 				{
-					/* scale flux with solid angle to obtain cf = sdd^2 / I0 / pix_area [1/cps]  */
+					/* scale flux with solid angle to obtain cf = sdd^2 / I0 / pix_area [1/cps/sr]  */
 					phi0_list.push_back( (int) strtol( str.c_str(), NULL, 10 ) ) ;
 					cf_list.push_back( 1.0e6 * ( sdd * sdd ) / (double) phi0_list[i] / ( pix_size[0] * pix_size[1] ) ) ;
 				}
@@ -287,7 +287,7 @@ class fit2dcorr
 				}
 				else
 				{
-					/* scale flux with solid angle to obtain cf = sdd^2 / I0 / pix_area [1/cps]  */
+					/* scale flux with solid angle to obtain cf = sdd^2 / I0 / pix_area [1/cps/sr]  */
 					phi0_b = (int) strtol( str.c_str(), NULL, 10 ) ;
 					cf_b = 1.0e6 * ( sdd * sdd ) / (double) phi0_b / ( pix_size[0] * pix_size[1] ) ;
 				}
@@ -498,7 +498,7 @@ class fit2dcorr
 
 			-abs_units <cf d T t (cf_b d_b T_b t_b)>	absolute units calibration applied for all images in file_list
 									where:
-									     cf (cf_b) - sample (background) calibration factor [1/cps]
+									     cf (cf_b) - sample (background) calibration factor [1/cps/sr]
 									     d (d_b) - sample (background) thickness [cm]
 									     T (T_b) - sample (background) transmission [0...1]
 									     t (t_b) - sample (background) exposure time [s]
@@ -666,7 +666,7 @@ class fit2dcorr
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-abs_units <cf d T t (cf_b d_b T_b t_b)>\tabsolute units calibration applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\twhere:\n") ;
-		fprintf( stdout, "\t\t\t\t\t\t\t     cf (cf_b) - sample (background) calibration factor [1/cps]\n") ;
+		fprintf( stdout, "\t\t\t\t\t\t\t     cf (cf_b) - sample (background) calibration factor [1/cps/sr]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     d (d_b) - sample (background) thickness [cm]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     T (T_b) - sample (background) transmission [0...1]\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\t     t (t_b) - sample (background) exposure time [s]\n") ;
@@ -1846,7 +1846,7 @@ class fit2dcorr
 		if ( abs_units_isdef ) { get_cf_d_T_t() ; }
 
 		/* y_scale labeling */
-		if ( abs_units_isdef ) { y_scale = "I [1/cm]" ; }
+		if ( abs_units_isdef ) { y_scale = "I [1/cm/sr]" ; }
 		else { y_scale = "I [a.u.]" ; }
 
 
@@ -2143,7 +2143,7 @@ class fit2dcorr
 
 	/*
 	   perform absolute intensity calibration
-	   returns dSigma/dOmega[1/cm] = cf[1/cps] * (I/t)[cps] / thickness[cm] / transmission
+	   returns dSigma/dOmega[1/cm/sr] = cf[1/cps/sr] * (I/t)[cps] / thickness[cm] / transmission
 	*/
 	void get_abs_intensity( double &I, double cf, double thickness, double transmission, double exptime)
 	{
@@ -2633,7 +2633,7 @@ class fit2dcorr
 				# array_size=487 x 195 [pix x pix]
 				# pol_fac=0.990
 				#
-				# cf=0.700 [1/cps]
+				# cf=0.700 [1/cps/sr]
 				# thickness=0.100 [cm]
 				# transmission=0.3200
 				# exposure time=10800.000 [s]
@@ -2642,7 +2642,7 @@ class fit2dcorr
 				#
 				# Fit2D called with: /home/mschmiele/projects/fit2dcorr/fit2d/fit2d_12_081_i686_linux2.4.20 -key -dim487x195 -fvar#SDD=293.0 -fvar#LAMBDA=1.5418 -fvar#BCX=277.0 -fvar#BCY=91.5 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -fvar#POL_FAC=0.990 -svar#MASK=mask20110414.msk -svar#FILE_IN=000871.tif -svar#FILE_OUT=000871.chi -ivar#RAD_BINS=234 -fvar#MAX_2THETA=7.8255 -mac/home/mschmiele/projects/fit2dcorr/fit2d/fit2d_saxs.mac
 				#
-				#     Q [1/nm]       I [1/cm]      dI [1/cm]
+				#     Q [1/nm]       I [1/cm/sr]      dI [1/cm/sr]
 				8.31870590E-02 1.75991132E+01 0.00000000E+00
 				...
 
@@ -2666,7 +2666,7 @@ class fit2dcorr
 				# array_size=487 x 195 [pix x pix]
 				# pol_fac=0.990
 				#
-				# cf=0.700 [1/cps]
+				# cf=0.700 [1/cps/sr]
 				# thickness=0.100 [cm]
 				# transmission=0.3200
 				# exposure time=10800.000 [s]
@@ -2675,7 +2675,7 @@ class fit2dcorr
 				#
 				# Fit2D called with: C:\Users\usr\Documents\cpp\fit2dcorr_gcc\fit2d\fit2d_12_077_i686_WXP.exe -key -dim487x195 -fvar#SDD=293.0 -fvar#LAMBDA=1.5418 -fvar#BCX=277.0 -fvar#BCY=91.5 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -fvar#POL_FAC=0.990 -svar#MASK=mask20110414.msk -svar#FILE_IN=000871.tif -svar#FILE_OUT=000871.chi -ivar#RAD_BINS=234 -fvar#MAX_2THETA=7.8255 -macC:\Users\usr\Documents\cpp\fit2dcorr_gcc\fit2d\fit2d_saxs.mac
 				#
-				#      Q [1/nm]        I [1/cm]       dI [1/cm]
+				#      Q [1/nm]        I [1/cm/sr]       dI [1/cm/sr]
 				8.31870660E-002 1.75991132E+001 0.00000000E+000
 				...
 
@@ -2713,7 +2713,7 @@ class fit2dcorr
 				fprintf( file, "%s out=%s\n", presp.c_str(), fit2dfile_list[i].c_str()) ;
 				if ( abs_units_isdef )
 				{
-					fprintf( file, "%s cf=%-.3lf [1/cps]", presp.c_str(), cf_list[i]) ;
+					fprintf( file, "%s cf=%-.3lf [1/cps/sr]", presp.c_str(), cf_list[i]) ;
 					if ( cf_isauto ) { fprintf( file, " ( phi0=%d [cps] )", phi0_list[i]) ; }
 					fprintf( file, "\n") ;
 					fprintf( file, "%s thickness=%-.3lf [cm]\n", presp.c_str(), thickness_list[i]) ;
@@ -2727,7 +2727,7 @@ class fit2dcorr
 					fprintf( file, "%s vol_fract_b=%-.3lf\n", presp.c_str(), vol_fract_b) ;
 					if ( abs_units_isdef )
 					{
-						fprintf( file, "%s cf_b=%-.3lf [1/cps]", presp.c_str(), cf_b) ;
+						fprintf( file, "%s cf_b=%-.3lf [1/cps/sr]", presp.c_str(), cf_b) ;
 						if ( cf_b_isauto ) { fprintf( file, " ( phi0_b=%d [cps] )", phi0_b) ; }
 						fprintf( file, "\n") ;
 						fprintf( file, "%s thickness_b=%-.3lf [cm]\n", presp.c_str(), thickness_b) ;
@@ -3010,7 +3010,7 @@ class fit2dcorr
 				# array_size=487 x 360 [pix x pix]
 				# pol_fac=0.980
 				#
-				# cf=0.700 [1/cps]
+				# cf=0.700 [1/cps/sr]
 				# thickness=0.100 [cm]
 				# transmission=0.3200
 				# exposure time=10800.000 [s]
@@ -3019,7 +3019,7 @@ class fit2dcorr
 				#
 				# Fit2D called with: /home/mschmiele/projects/fit2dcorr/fit2d/fit2d_12_081_i686_linux2.4.20 -key -dim487x360 -fvar#SDD=293.0 -fvar#LAMBDA=1.5418 -fvar#BCX=277.0 -fvar#BCY=91.5 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -fvar#POL_FAC=0.980 -svar#MASK=mask20110414.msk -svar#FILE_IN=000884.tif -svar#FILE_OUT=000884_azi.tif -fvar#AZI_START=0.0 -fvar#AZI_END=360.0 -ivar#AZI_BINS=360 -fvar#PIX_X_ROUT=487.00 -fvar#PIX_Y_ROUT=195.00 -fvar#RAD_IN=0.00 -fvar#RAD_OUT=234.12 -ivar#RAD_BINS=234 -mac/home/mschmiele/projects/fit2dcorr/fit2d/fit2d_saxs_azi.mac
 				#
-				#     s [1/nm]       I [1/cm]      dI [1/cm]
+				#     s [1/nm]       I [1/cm/sr]      dI [1/cm/sr]
 				1.32395706E-02 1.62458552E+01 9.25921749E-02
 				...
 
@@ -3048,7 +3048,7 @@ class fit2dcorr
 				# array_size=487 x 360 [pix x pix]
 				# pol_fac=0.980
 				#
-				# cf=0.700 [1/cps]
+				# cf=0.700 [1/cps/sr]
 				# thickness=0.100 [cm]
 				# transmission=0.3200
 				# exposure time=10800.000 [s]
@@ -3057,7 +3057,7 @@ class fit2dcorr
 				#
 				# Fit2D called with: C:\Users\usr\Documents\cpp\fit2dcorr_gcc\fit2d\fit2d_12_077_i686_WXP.exe -key -dim487x360 -fvar#SDD=293.0 -fvar#LAMBDA=1.5418 -fvar#BCX=277.0 -fvar#BCY=91.5 -fvar#PIXSZ_X=172.0 -fvar#PIXSZ_Y=172.0 -fvar#POL_FAC=0.980 -svar#MASK=mask20110414.msk -svar#FILE_IN=000884.tif -svar#FILE_OUT=000884_azi.tif -fvar#AZI_START=0.0 -fvar#AZI_END=360.0 -ivar#AZI_BINS=360 -fvar#PIX_X_ROUT=487.00 -fvar#PIX_Y_ROUT=195.00 -fvar#RAD_IN=0.00 -fvar#RAD_OUT=234.12 -ivar#RAD_BINS=234 -macC:\Users\usr\Documents\cpp\fit2dcorr_gcc\fit2d\fit2d_saxs_azi.mac
 				#
-				#      Q [1/nm]        I [1/cm]       dI [1/cm]
+				#      Q [1/nm]        I [1/cm/sr]       dI [1/cm/sr]
 				8.31866756E-002 1.62458571E+001 9.25922185E-002
 				...
 
@@ -3102,7 +3102,7 @@ class fit2dcorr
 				fprintf( file, "%s out=%s\n", presp.c_str(), fit2dfile_list[i].c_str()) ;
 				if ( abs_units_isdef )
 				{
-					fprintf( file, "%s cf=%-.3lf [1/cps]", presp.c_str(), cf_list[i]) ;
+					fprintf( file, "%s cf=%-.3lf [1/cps/sr]", presp.c_str(), cf_list[i]) ;
 					if ( cf_isauto ) { fprintf( file, " ( phi0=%d [cps] )", phi0_list[i]) ; }
 					fprintf( file, "\n") ;
 					fprintf( file, "%s thickness=%-.3lf [cm]\n", presp.c_str(), thickness_list[i]) ;
@@ -3116,7 +3116,7 @@ class fit2dcorr
 					fprintf( file, "%s vol_fract_b=%-.3lf\n", presp.c_str(), vol_fract_b) ;
 					if ( abs_units_isdef )
 					{
-						fprintf( file, "%s cf_b=%-.3lf [1/cps]", presp.c_str(), cf_b) ;
+						fprintf( file, "%s cf_b=%-.3lf [1/cps/sr]", presp.c_str(), cf_b) ;
 						if ( cf_b_isauto ) { fprintf( file, " ( phi0_b=%d [cps] )", phi0_b) ; }
 						fprintf( file, "\n") ;
 						fprintf( file, "%s thickness_b=%-.3lf [cm]\n", presp.c_str(), thickness_b) ;

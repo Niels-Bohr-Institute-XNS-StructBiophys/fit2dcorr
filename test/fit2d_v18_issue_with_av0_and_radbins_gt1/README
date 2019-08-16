@@ -1,0 +1,89 @@
+Outcome:
+
+-fit2d v18 is fine for av==1 
+-fit2d v18 needs to used for av==0 and rad_bins==1 (ring_profile), v12 produces in fit2d and fit2dcorr strange curves
+-fit2d v12 needs to used for av==0 and rad_bins >1, v18 produces Q-azi maps in fit2d and fit2dcorr which start at Q=0 no matter what rad_st provided
+
+
+Problem:
+
+
+	see fit2d_v18_vs_v12_with_av0_and_radbins_gt1/
+
+		fit2d v18 for av==1 vs av==0 && rad_bins > 1
+
+		fit2dcorr -av 0 +mask 4mm_cen.msk +seq im_0058960_caz.tiff im_0058968_caz.tiff 4 10 +f im_0058971_caz.tiff im_0058972_caz.tiff +sdd 2000 +bc 249.64 271.19 +lambda auto +pix_size auto -rad_st 30 -rad_end 180 -azi_st 0.0 -azi_end 360.0 -rad_bins 30 -azi_bins 360
+
+		mmv 'im_00*_caz.chi' 'im_00#1_caz.chi_av0'
+
+		fit2dcorr -av 1 +mask 4mm_cen.msk +seq im_0058960_caz.tiff im_0058968_caz.tiff 4 10 +f im_0058971_caz.tiff im_0058972_caz.tiff +sdd 2000 +bc 249.64 271.19 +lambda auto +pix_size auto -nonnegative
+
+		xmgrace -legend load -log xy im_0058968_caz.chi*
+		-> im_58968_fit2d_v18_vs_v12_CAKE_INTEGRATE_rad_30_180_30_azi_0_360_30_Ivsq.agr
+		-> shift in Q btw av==1 and av==0 data
+
+		as it can be seen in im_58972_fit2d_v18_vs_v12_CAKE_INTEGRATE_rad_30_180_30_azi_0_360_30_Q_azi_map.png
+		v18 (left) and v12 (right) produce with same settings for rad and azi etc diff Q-azi maps, the one for v18 starts always at Q=0 while the one for v12 is correct and follows the provided rad_st
+
+		with v18 and av==0 && rad_bins > 1 the Q scale is wrong since the Q-azi map is wrong and starts at Q=0
+
+		internal Q-range in fit2dcorr for av==0 and rad_bins > 1
+		min_Q=0.1051
+		max_Q=0.6308
+		rad_bins=30
+		dd = ( max_Q - min_Q ) / ( rad_bins )
+
+		-> dd =  0.017523
+		-> min_Q+([0:1:(rad_bins-1)]+0.5)*dd
+		ans =
+
+		 Columns 1 through 8:
+
+		   0.11386   0.13139   0.14891   0.16643   0.18396   0.20148   0.21900   0.23653
+
+		 Columns 9 through 16:
+
+		   0.25405   0.27157   0.28909   0.30662   0.32414   0.34166   0.35919   0.37671
+
+		 Columns 17 through 24:
+
+		   0.39424   0.41176   0.42928   0.44681   0.46433   0.48185   0.49938   0.51690
+
+		 Columns 25 through 30:
+
+		   0.53442   0.55195   0.56947   0.58699   0.60452   0.62204
+
+		*.chi_av0 with fit2D v18 has indeed the same Q-range
+		#     Q [1/nm]       I [a.u.]      dI [a.u.]
+		1.13901398E-01 2.32293572E+01 1.54008257E-01
+		1.31422994E-01 1.54746756E+01 1.16743775E-01
+		1.48944591E-01 1.11453165E+01 9.29721769E-02
+		1.66466187E-01 8.22249003E+00 7.53779012E-02
+		1.83987783E-01 6.67223105E+00 6.44882773E-02
+		2.01509380E-01 5.50605751E+00 5.65033673E-02
+		...
+
+		however I(Q) needs to shifted by -min_Q to match I(Q) with av==1
+
+
+
+	see fit2d_v18_vs_v12_with_av0_and_radbins_gt1_solved/
+
+		change fit2dcorr, use fit2d v12 exec for av==0 && rad_bins > 1, else v18
+
+		run again fit2dcorr with av==1 and av==0 && rad_bins > 1
+
+		xmgrace -legend load -log xy im_0058972_caz.chi*
+		-> im_58972_fit2d_v18_vs_v12_CAKE_INTEGRATE_rad_30_180_30_azi_0_360_30_Ivsq.agr
+		-> no shift in Q btw av==1 and av==0 data, perfect match !!!
+
+
+
+
+
+Conclusion:
+
+-> av == 0 rad_bins == 1 -> use v18
+-> av == 0 rad_bins  > 1 -> use v12
+-> av == 1               -> use v18
+
