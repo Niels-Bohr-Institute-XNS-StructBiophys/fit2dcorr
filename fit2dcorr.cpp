@@ -139,9 +139,11 @@ class fit2dcorr
 	bool is_intensity_conserved ;
 
 
-	unsigned int array_size[2] ;
-	unsigned int image_size[2] ;
+	unsigned int array_size[2] ; /* sizes of the memory array used by Fit2D, will be auto-derived from image_size */
 
+	unsigned int image_size[2] ; /* sizes of the detector images in pixels */
+	bool image_size_isdef, image_size_isauto ;
+	
 	double pix_x_r_out, pix_y_r_out ;
 
 	double max_2theta, min_2theta ; /* maximum and minimum theta angle for Q-range */
@@ -917,7 +919,10 @@ class fit2dcorr
 		lambda_isdef = false ;
 		lambda_isauto = false ;
 		pix_size_isdef = false ;
-		pix_size_isauto = false ;
+		pix_size_isauto = false ; /* since it is a mandatory argument, it should be false by default */
+		image_size_isdef = false ;
+		image_size_isauto = true ; /* since it is an option it should be true by default */
+
 
 		/* optional */
 		mac_isdef = false ;
@@ -1159,6 +1164,7 @@ class fit2dcorr
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
+					/* -cf_is_i0, -cf_b_is_i0 */
 					case 'c':
 						if ( !strcmp( varg[i], "-cf_is_i0") )
 						{
@@ -1170,11 +1176,17 @@ class fit2dcorr
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
+					/* -det_tilt_angle */
 					case 'd':
 						if ( !strcmp( varg[i], "-det_tilt_angle") )
 						{
-							if ( is_numeric(varg[i]) ) { det_tilt_angle = strtod( varg[i], NULL) ; }
-							else { fit2dcorr_error(2) ; }
+							if ( ++i<carg )
+							{
+								if ( is_numeric(varg[i]) ) { det_tilt_angle = strtod( varg[i], NULL) ; }
+								else { fit2dcorr_error(2) ; }
+							}
+							else { fit2dcorr_error(1) ; }
+							break;
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
@@ -1229,6 +1241,31 @@ class fit2dcorr
 					case 'h':
 						if ( !strcmp(varg[i], "-h") ) { usage() ; }
 						else if ( !strcmp(varg[i], "-help") ) { usage() ; }
+						else { fit2dcorr_error(3) ; }
+						break ;
+					/* -image_size */
+					case 'i':
+						if ( !strcmp(varg[i], "-image_size") )
+						{
+							/* 
+								input must be either auto or two numerics
+								if auto the corresponding flag will remain true and program will try to read it automatically from SAXSLAB tif later
+								if non-auto image_size_isauto will be set to false it will be tried to read input as numbers (if fails error and exit) and image_size_isdef flag will set in case of success to true
+							*/
+							for ( j=0; j<2; ++j)
+							{
+								if ( ++i<carg )
+								{
+									if ( !strcmp( varg[i], "auto") ) { image_size_isauto = true ; break ; }
+									else { image_size_isauto = false ; }
+
+									if ( is_numeric(varg[i]) ) { image_size[j] = strtod( varg[i], NULL) ; }
+									else { fit2dcorr_error(2) ; }
+									image_size_isdef = true ;
+								}
+								else { fit2dcorr_error(1) ; }
+							}
+						}
 						else { fit2dcorr_error(3) ; }
 						break ;
 					/* -l +lambda */
@@ -1391,8 +1428,8 @@ class fit2dcorr
 						{
 							/* 
 								input must be either auto or two numerics
-								if auto the corresponding flag will remain false and program will try to read it automatically from SAXSLAB xml entry in tif
-								if non-auto it will be tried to read input as numbers (if fails error and exit) and flag will set in case of success to true
+								if auto the corresponding pix_size_isauto flag will set to true and program will try to read it automatically from SAXSLAB xml entry in tif later
+								if non-auto pix_size_isauto flkag remains at false (default) it will be tried to read input as numbers (if fails error and exit) and pix_size_isdef flag will set in case of success to true
 							*/
 							for ( j=0; j<2; ++j)
 							{
@@ -1432,7 +1469,7 @@ class fit2dcorr
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
-					/* -rad_st -rad_end -rad_bins */
+					/* -rad_st -rad_end -rad_bins -rot_angle_tilt_plane */
 					case 'r':
 						if ( !strcmp( varg[i], "-rad_st") )
 						{
@@ -1469,8 +1506,13 @@ class fit2dcorr
 						}
 						else if ( !strcmp( varg[i], "-rot_angle_tilt_plane") )
 						{
-							if ( is_numeric(varg[i]) ) { rot_angle_tilt_plane = strtod( varg[i], NULL) ; }
-							else { fit2dcorr_error(2) ; }
+							if ( ++i<carg )
+							{
+								if ( is_numeric(varg[i]) ) { rot_angle_tilt_plane = strtod( varg[i], NULL) ; }
+								else { fit2dcorr_error(2) ; }
+							}
+							else { fit2dcorr_error(1) ; }
+							break;
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
@@ -1731,7 +1773,7 @@ class fit2dcorr
 		if ( err > max_err[av] ) { fit2dcorr_error(5) ; }
 
 		/* 1st check if all essential parameters (+...) have been defined / flagged as auto */
-		if ( ! ( bc_isdef || bc_isauto ) || ! ( sdd_isdef || sdd_isauto ) || ! ( lambda_isdef || lambda_isauto ) || ! ( pix_size_isdef || pix_size_isauto ) || !mask_isdef || ! ( seq_isdef || file_isdef ) ) { fit2dcorr_error(6) ; }
+		if ( ! ( bc_isdef || bc_isauto ) || ! ( sdd_isdef || sdd_isauto ) || ! ( lambda_isdef || lambda_isauto ) || ! ( pix_size_isdef || pix_size_isauto ) || ! ( image_size_isdef || image_size_isauto ) || !mask_isdef || ! ( seq_isdef || file_isdef ) ) { fit2dcorr_error(6) ; }
 
 
 		/* in case of a +seq option derive filenames from the given sequence(s) and add filenames to file_list */
@@ -1765,11 +1807,14 @@ class fit2dcorr
 
 
 		/* 
-		   image size of PILATUS-tif (e.g. 487x195 or 487x619) will be read via libtiff,
-		   it is assumed that all files in file_list have the same image dimensions !!!
+		   image size of detector TIFF images (e.g. 487x195 or 487x619 for PILATUS-100k and 300k) will be read via libtiff,
+		   !!! it is assumed that all files in file_list have the same image dimensions !!!
 		*/
-		info_tif( file_list[0], image_size[0], image_size[1]) ;
-
+		if ( image_size_isauto )
+		{
+			info_tif( file_list[0], image_size[0], image_size[1]) ;
+			image_size_isdef = true ;
+		}
 
 		/* 
 		   derive pixel geometry from 1st image in file_list in case of auto via SAXSLAB xml entry
@@ -1831,8 +1876,8 @@ class fit2dcorr
 		}
 
 
-		/* 2nd check if all essential parameters (+...) are now defined */
-		if ( !bc_isdef || !sdd_isdef || !lambda_isdef || !pix_size_isdef || !mask_isdef || ! ( seq_isdef || file_isdef ) ) { fit2dcorr_error(6) ; }
+		/* 2nd check if all essential parameters (+... plus some extra with -) are now defined */
+		if ( !bc_isdef || !sdd_isdef || !lambda_isdef || !pix_size_isdef || !image_size_isdef || !mask_isdef || ! ( seq_isdef || file_isdef ) ) { fit2dcorr_error(6) ; }
 
 
 
@@ -2486,7 +2531,7 @@ class fit2dcorr
 
 
 		/* store common part in sdummy */
- 		sprintf( sdummy,"%s %skey %sdim%ux%u %sfvar#SDD=%-.3lf %sfvar#LAMBDA=%-.6lf %sfvar#BCX=%-.3lf %sfvar#BCY=%-.3lf %sfvar#ROTTILTPLANE=%-.3lf %sfvar#DETTILT=%-.3lf %sfvar#PIXSZ_X=%-.1lf %sfvar#PIXSZ_Y=%-.1lf %sfvar#POL_FAC=%-.3lf %ssvar#MASK=%s %ssvar#CONSERVINT=%s %ssvar#FILE_IN=%%s %ssvar#FILE_OUT=%%s", fit2dfile.c_str(), cmdbind.c_str(), cmdbind.c_str(), array_size[0], array_size[1], cmdbind.c_str(), sdd, cmdbind.c_str(), lambda, cmdbind.c_str(), bc[0], cmdbind.c_str(), bc[1], cmdbind.c_str(), pix_size[0], cmdbind.c_str(), pix_size[1], cmdbind.c_str(), rot_angle_tilt_plane, cmdbind.c_str(), det_tilt_angle, cmdbind.c_str(), pol_fac, cmdbind.c_str(), maskfile.c_str(), cmdbind.c_str(), strconservint.c_str(), cmdbind.c_str(), cmdbind.c_str()) ;
+ 		sprintf( sdummy,"%s %skey %sdim%ux%u %sfvar#SDD=%-.3lf %sfvar#LAMBDA=%-.6lf %sfvar#BCX=%-.3lf %sfvar#BCY=%-.3lf %sfvar#ROTTILTPLANE=%-.3lf %sfvar#DETTILT=%-.3lf %sfvar#PIXSZ_X=%-.1lf %sfvar#PIXSZ_Y=%-.1lf %sfvar#POL_FAC=%-.3lf %ssvar#MASK=%s %ssvar#CONSERVINT=%s %ssvar#FILE_IN=%%s %ssvar#FILE_OUT=%%s", fit2dfile.c_str(), cmdbind.c_str(), cmdbind.c_str(), array_size[0], array_size[1], cmdbind.c_str(), sdd, cmdbind.c_str(), lambda, cmdbind.c_str(), bc[0], cmdbind.c_str(), bc[1], cmdbind.c_str(), rot_angle_tilt_plane, cmdbind.c_str(), det_tilt_angle, cmdbind.c_str(), pix_size[0], cmdbind.c_str(), pix_size[1], cmdbind.c_str(), pol_fac, cmdbind.c_str(), maskfile.c_str(), cmdbind.c_str(), strconservint.c_str(), cmdbind.c_str(), cmdbind.c_str()) ;
 
 		/* define individual part in sdummy2 for the different av modes */
 		if ( av == 1 )
