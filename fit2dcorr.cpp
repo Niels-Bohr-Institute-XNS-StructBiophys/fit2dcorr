@@ -120,6 +120,9 @@ class fit2dcorr
 	double pix_size[2] ; /* pixel geometry */
 	bool pix_size_isdef, pix_size_isauto ; /* +pix_size */
 
+	double rot_angle_tilt_plane, rot_angle_tilt_plane_def ; /* detector non-orthogonality, rotation angle in tilt plane */
+	double det_tilt_angle, det_tilt_angle_def ; /* detector non-orthogonality, tilt angle of detector */
+
 	string x_scale, x_scale_def ;
 	double x_scale_fac, x_scale_fac_def ;
 
@@ -194,6 +197,9 @@ class fit2dcorr
 		this->rad_st_def = 0.0 ;
 
 		this->pol_fac_def = 0.99 ;
+		
+		this->rot_angle_tilt_plane_def = 0.0 ;
+		this->det_tilt_angle_def = 0.0 ;
  	}
 
 
@@ -440,175 +446,181 @@ class fit2dcorr
 
 		/*  copy of usage from terminal */
 		/*
-		fit2dcorr -- usage
+			fit2dcorr -h
+			Evaluate command line arguments
+			-h
+
+			fit2dcorr -- how to use
 
 
-		specifiers with "-" are optionally, those with "+" are mandatory:
+			specifiers with "-" are optionally, those with "+" are mandatory:
 
 
-			-av <av>					average mode:
-									0 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars
-									     uses CAKE -> INTEGRATE module
-									     allows more flexibility with regard to azimuthal and radial range
-									1 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars (default)
-									     uses standard INTEGRATE module
-									2 -> azimuthal averaging without Fit2D, without / with errorbars (not implemented yet)
+				-av <av>					average mode:
+										0 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars
+											 uses CAKE -> INTEGRATE module
+											 allows more flexibility with regard to azimuthal and radial range
+										1 -> SAXS/GISAXS in Fit2D, without or Poisson-like errorbars (default)
+											 uses standard INTEGRATE module
+										2 -> azimuthal averaging without Fit2D, without / with errorbars (not implemented yet)
 
-			-err <err>					errorbar mode:
-									0 -> no error bars (produces -1 numbers in 3rd column)
-									1 -> Poisson-style (default)
-
-
-			+mask <maskfile>				apply mask from Fit2D maskfile to all images in file_list
-									e.g. -mask 300k_20Hz.msk
-
-			+seq <first_file last_file min_pos max_pos>	sequence of input files with a fixed run number scheme between min_pos and max_pos
-									e.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14
-									     +seq 002367.tif 003689.tif 1 6
-									files in the sequence that don't exist will not be considered, a warning message will be posted
-									it is possible to use multiple instances of +seq option and to use +seq in combination with +f
-
-			+f <file_1 ... file_n>				list of several tif-files, not necessarily with a run number scheme
-									e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
-									it is possible to use multiple instances of +f option and to use +f in combination with +seq
-
-			+bc <bc[0] bc[1]				beam center y and z coordinates applied for all images in file_list [pix]
-									e.g. +bc 270.5 89.6
-									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: beamcenter_actual
-									e.g. +bc auto
-
-			+sdd <sdd>					sample-detector-distance applied for all images in file_list [mm]
-									e.g. +sdd 290
-									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: detector_dist
-									e.g. +sdd auto
-
-			+lambda <lambda>				wavelength applied for all images in file_list [Angstroem]
-									e.g. +lambda 1.5418
-									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: wavelength
-									e.g. +lambda auto
-
-			+pix_size <pixsz_y pixsz_z>			pixel sizes of detector applied for all images in file_list [microns]
-									e.g. +pix_size 172 172
-									with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: pix_size
-									with auto argument, for PILATUS tifs it will be automatically read from each file (via # Pixel_size)
-									e.g. +pix_size auto
-
-			-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in file_list
-									the subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)
-
-			-abs_units <cf d T t (cf_b d_b T_b t_b)>	absolute units calibration applied for all images in file_list
-									where:
-									     cf (cf_b) - sample (background) calibration factor [1/cps/sr]
-									     d (d_b) - sample (background) thickness [cm]
-									     T (T_b) - sample (background) transmission [0...1]
-									     t (t_b) - sample (background) exposure time [s]
-									with auto argument, for SAXSLAB tifs cf will be automatically calculated (with pix_size and sdd) from each file if the xml entry is set: saxsconf_Izero
-									with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_thickness
-									with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_transfact)
-									with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: det_exposure_time
-									with auto argument, for PILATUS tifs t will be automatically read from each file (via # Exposure_time)
-									e.g. -abs_units 0.7 0.1 0.2456 3600
-									     -abs_units 0.7 auto auto auto
-									     -abs_units 0.7 auto 0.1 auto
-									     -abs_units 0.7 0.1 0.2456 auto
-									     -abs_units auto auto auto auto
-									if -subtract option is used also cf_b, d_b, T_b and t_b for the background file must be appended !
-									e.g. -abs_units 0.72 auto auto auto 0.69 auto auto auto
-									     -abs_units 0.72 0.1 0.234 auto 0.69 0.1 0.221 auto
-									     -abs_units auto 0.15 auto auto auto 0.15 auto auto
-									     -abs_units auto auto auto auto auto auto auto auto
-
-			-cf_is_i0					CF value for sample files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
-			-cf_b_is_i0					CF value for backgr files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
-
-			-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
-
-			-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
-									comma separated lists and / or range specifications possible
-									e.g. -l 1:1:3
-									     -l 3,4,5,6,235,236
-									     -l 2:3:14
-									     -l 3,4,5,6,235,236 -l 100:1:121
-									note that other options like -nonnegative (considered first when writing output) might affect line numbers too!
-
-			-rad_st <rad_st>				start inner radius for radial distance [pix] applied for all images in file_list
-									default is 0.0 [pix], for modes av == 0 & 2 only
-
-			-rad_end <rad_end>				end outer radius for radial distance [pix] applied for all images in file_list
-									will be automatically calculated by default from the most distant corner of the image with respect to the bc
-			OR
-			-max_2theta <max_2theta>			maximum 2theta angle applied for all images in file_list
-									will be automatically calculated by default from the most distant corner of the image with respect to the bc
-
-			-rad_bins <rad_bins>				number of radial bins [integer] applied for all images in file_list
-									will be automatically calculated by default from the most distant corner of the image to the bc and the pix_size
-									for -av 0 and -rad_bins 1 the azimuthal intensity is exported as chi file for a (partial) ring / sector that,
-									is defined by rad_st, rad_end (or max_2theta), azi_st, azi_end and azi_bins
-
-			-azi_st <azi_st>				start azimuthal angle [deg] applied for all images in file_list
-									default is 0.0 [deg], for modes av == 0 & 2 only
-
-			-azi_end <azi_end>				end azimuthal angle [deg] applied for all images in file_list
-									default is 360.0 [deg], for modes av == 0 & 2 only
-
-			-azi_bins <azi_bins>				number of azimuthal bins [integer] applied for all images in file_list
-									by default will be computed from azi_st and azi_end in 1 [deg] steps, for modes av == 0 & 2 only
-
-			-pol_fac <pol_fac>				polarisation factor
-									default is 0.99 for lab sources (for synchrotrons 0.95 might be better)
-
-			-nonnegative					export only lines in *.chi-files where intensities are strictly positive (>0)
-									in case of -subtract option this affects all lines where sample, background and difference are >0
-
-			-openmp						OpenMP parallelization support, by default off
-
-			-v						verbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analysis / debugging
-
-			-mac <macrofile>				user-defined Fit2D macro-file, for modes av == 0 & 1 only
+				-err <err>					errorbar mode:
+										0 -> no error bars (produces -1 numbers in 3rd column)
+										1 -> Poisson-style (default)
 
 
-		examples:
+				+mask <maskfile>				apply mask from Fit2D maskfile to all images in file_list
+										e.g. -mask 300k_20Hz.msk
 
-			(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1, err == 1) requesting a Q-scale in units of [1/nm]
+				+seq <first_file last_file min_pos max_pos>	sequence of input files with a fixed run number scheme between min_pos and max_pos
+										e.g. +seq latest_0002367_craw.tiff latest_0003689_craw.tiff 8 14
+											 +seq 002367.tif 003689.tif 1 6
+										files in the sequence that don't exist will not be considered, a warning message will be posted
+										it is possible to use multiple instances of +seq option and to use +seq in combination with +f
 
-			    fit2dcorr +mask mask.msk +f test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 0.65 3600 -qscale Q_nm-1
+				+f <file_1 ... file_n>				list of several tif-files, not necessarily with a run number scheme
+										e.g. 002367.tiff 002345.tiff 1-a6.tif test.tif
+										it is possible to use multiple instances of +f option and to use +f in combination with +seq
 
-			(2) same as (1) but for for a list of SAXSLAB tiff-files where the different transmissions T and exposure times t can be read automatically
+				+bc <bc[0] bc[1]				beam center y and z coordinates applied for all images in file_list [pix]
+										e.g. +bc 270.5 89.6
+										with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: beamcenter_actual
+										e.g. +bc auto
 
-			    fit2dcorr +mask mask.msk +f file_1.tiff file_2.tiff test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 auto auto
+				+sdd <sdd>					sample-detector-distance applied for all images in file_list [mm]
+										e.g. +sdd 290
+										with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: detector_dist
+										e.g. +sdd auto
 
-			(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,
-			    images are SAXSLAB data format, containing the data I0 d T t lambda pix_size as xml entries, that are automatically read,
-			    integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,
-			    errorbars in subtracted file are computed by error propagation from the sample and background files,
-			    all non-positive data points will be skipped as well as the first 5 points,
-			    parallelization is used via OpenMP (depending on compilation and OS)
+				+lambda <lambda>				wavelength applied for all images in file_list [Angstroem]
+										e.g. +lambda 1.5418
+										with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: wavelength
+										e.g. +lambda auto
 
-			    fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units auto auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp
+				+pix_size <pixsz_y pixsz_z>			pixel sizes of detector applied for all images in file_list [microns]
+										e.g. +pix_size 172 172
+										with auto argument, for SAXSLAB tifs it will be automatically read from each file if the xml entry is set: pix_size
+										with auto argument, for PILATUS tifs it will be automatically read from each file (via # Pixel_size)
+										e.g. +pix_size auto
 
-			(4) data reduction of a list of SAXSLAB tiff-files to extract the scattered intensity along a Debye-Scherrer ring sector,
-			    normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read
-			    most parameters are read automatically, since they were written to the tiff-files during beamtime,
-			    integration shall be done in a ring sector (0-360 [deg], 100-140 [pix]) with 120 angular-bins (3 [deg] steps), what requires mode av == 0,
-			    rad_bins == 1 enforces intensity vs azimuthal angle,
-			    no errobars are calculated (err == 0)
+				-subtract <file_b vol_fract_b>			option to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in file_list
+										the subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)
 
-			    fit2dcorr -av 0 -err 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1
+				-rot_angle_tilt_plane <rot_angle_tilt_plane>	rotation angle of tilting plane [deg], default 0.0 [deg]
+				-det_tilt_angle <det_tilt_angle>		angle of detector tilt in plane [deg], default 0.0 [deg]
+
+				-abs_units <cf d T t (cf_b d_b T_b t_b)>	absolute units calibration applied for all images in file_list
+										where:
+											 cf (cf_b) - sample (background) calibration factor [1/cps/sr]
+											 d (d_b) - sample (background) thickness [cm]
+											 T (T_b) - sample (background) transmission [0...1]
+											 t (t_b) - sample (background) exposure time [s]
+										with auto argument, for SAXSLAB tifs cf will be automatically calculated (with pix_size and sdd) from each file if the xml entry is set: saxsconf_Izero
+										with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_thickness
+										with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: sample_transfact)
+										with auto argument, for SAXSLAB tifs d will be automatically read from each file if the xml entry is set: det_exposure_time
+										with auto argument, for PILATUS tifs t will be automatically read from each file (via # Exposure_time)
+										e.g. -abs_units 0.7 0.1 0.2456 3600
+											 -abs_units 0.7 auto auto auto
+											 -abs_units 0.7 auto 0.1 auto
+											 -abs_units 0.7 0.1 0.2456 auto
+											 -abs_units auto auto auto auto
+										if -subtract option is used also cf_b, d_b, T_b and t_b for the background file must be appended !
+										e.g. -abs_units 0.72 auto auto auto 0.69 auto auto auto
+											 -abs_units 0.72 0.1 0.234 auto 0.69 0.1 0.221 auto
+											 -abs_units auto 0.15 auto auto auto 0.15 auto auto
+											 -abs_units auto auto auto auto auto auto auto auto
+
+				-cf_is_i0					CF value for sample files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
+				-cf_b_is_i0					CF value for backgr files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
+
+				-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
+
+				-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
+										comma separated lists and / or range specifications possible
+										e.g. -l 1:1:3
+											 -l 3,4,5,6,235,236
+											 -l 2:3:14
+											 -l 3,4,5,6,235,236 -l 100:1:121
+										note that other options like -nonnegative (considered first when writing output) might affect line numbers too!
+
+				-rad_st <rad_st>				start inner radius for radial distance [pix] applied for all images in file_list
+										default is 0.0 [pix], for modes av == 0 & 2 only
+
+				-rad_end <rad_end>				end outer radius for radial distance [pix] applied for all images in file_list
+										will be automatically calculated by default from the most distant corner of the image with respect to the bc
+				OR
+				-max_2theta <max_2theta>			maximum 2theta angle applied for all images in file_list
+										will be automatically calculated by default from the most distant corner of the image with respect to the bc
+
+				-rad_bins <rad_bins>				number of radial bins [integer] applied for all images in file_list
+										will be automatically calculated by default from the most distant corner of the image to the bc and the pix_size
+										for -av 0 and -rad_bins 1 the azimuthal intensity is exported as chi file for a (partial) ring / sector that,
+										is defined by rad_st, rad_end (or max_2theta), azi_st, azi_end and azi_bins
+
+				-azi_st <azi_st>				start azimuthal angle [deg] applied for all images in file_list
+										default is 0.0 [deg], for modes av == 0 & 2 only
+
+				-azi_end <azi_end>				end azimuthal angle [deg] applied for all images in file_list
+										default is 360.0 [deg], for modes av == 0 & 2 only
+
+				-azi_bins <azi_bins>				number of azimuthal bins [integer] applied for all images in file_list
+										by default will be computed from azi_st and azi_end in 1 [deg] steps, for modes av == 0 & 2 only
+
+				-pol_fac <pol_fac>				polarisation factor
+										default is 0.99 for lab sources (for synchrotrons 0.95 might be better)
+
+				-nonnegative					export only lines in *.chi-files where intensities are strictly positive (>0)
+										in case of -subtract option this affects all lines where sample, background and difference are >0
+
+				-openmp						OpenMP parallelization support, by default off
+
+				-v						verbose mode, if used, temporary files like *.{chi,tif}_{avg,tot} will not be deleted to facilitate error analysis / debugging
+
+				-mac <macrofile>				user-defined Fit2D macro-file, for modes av == 0 & 1 only
 
 
-		compilation:
+			examples:
 
-			on Linux OS install package libtiff and call
+				(1) standard data reduction for a tiff-file with absolute intensity calibration using default mode (av == 1, err == 1) requesting a Q-scale in units of [1/nm]
 
-			./compile_fit2dcorr.sh g++ 3 NONE
+					fit2dcorr +mask mask.msk +f test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 0.65 3600 -qscale Q_nm-1
 
-			to compile it with gcc/g++ with OpenMP support and optimization level 3, using the provided Makefile and compile_fit2dcorr.sh script
+				(2) same as (1) but for for a list of SAXSLAB tiff-files where the different transmissions T and exposure times t can be read automatically
 
+					fit2dcorr +mask mask.msk +f file_1.tiff file_2.tiff test.tiff +sdd 1023.3 +bc 270.4 245.9 +lambda 1.5418 +pix_size 172 172 -abs_units 23.4 0.1 auto auto
+
+				(3) data reduction of a sequence of SAXSLAB tiff-files with absolute intensity calibration and background subtraction,
+					images are SAXSLAB data format, containing the data I0 d T t lambda pix_size as xml entries, that are automatically read,
+					integration shall be done in an angular sector (70-280 [deg], 60-140 [pix]) with 25 q-bins, what requires mode av == 0,
+					errorbars in subtracted file are computed by error propagation from the sample and background files,
+					all non-positive data points will be skipped as well as the first 5 points,
+					parallelization is used via OpenMP (depending on compilation and OS)
+
+					fit2dcorr -av 0 +mask mask.msk +seq im_0049301_caz.tiff im_0049632_caz.tiff 6 10 +sdd 1023.3 +bc 270.4 245.9 +lambda auto +pix_size auto -subtract buffer.tiff 0.99 -abs_units auto auto auto auto auto auto auto -rad_st 60.0 -rad_end 140.0 -azi_st 70.0 -azi_end 280.0 -rad_bins 25 -l 1:1:5 -nonnegative -openmp
+
+				(4) data reduction of a list of SAXSLAB tiff-files to extract the scattered intensity along a Debye-Scherrer ring sector,
+					normalization of intensity only by d(=0.1 [cm] fix) T t, that are automatically read
+					most parameters are read automatically, since they were written to the tiff-files during beamtime,
+					integration shall be done in a ring sector (0-360 [deg], 100-140 [pix]) with 120 angular-bins (3 [deg] steps), what requires mode av == 0,
+					rad_bins == 1 enforces intensity vs azimuthal angle,
+					no errobars are calculated (err == 0)
+
+					fit2dcorr -av 0 -err 0 +mask mask.msk +f file_1.tiff file_2.tiff file_3.tiff file_4.tiff +sdd auto +bc auto +lambda auto +pix_size auto -abs_units 1.0 0.1 auto auto -rad_st 120.0 -rad_end 140.0 -rad_bins 1
+
+
+			compilation:
+
+				on Linux OS install package libtiff and call
+
+				./compile_fit2dcorr.sh g++ 3 NONE
+
+				to compile it with gcc/g++ with OpenMP support and optimization level 3, using the provided Makefile and compile_fit2dcorr.sh script
 
 		*/
 
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "fit2dcorr -- usage\n") ;
+		fprintf( stdout, "fit2dcorr -- how to use\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "specifiers with \"-\" are optionally, those with \"+\" are mandatory:\n") ;
@@ -663,6 +675,9 @@ class fit2dcorr
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-subtract <file_b vol_fract_b>\t\t\toption to subtract a background file file_b scaled by volume fraction vol_fract_b from all files in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tthe subtraction is done with the 1D azimuthally averaged data, i.e. NOT on the 2D images (and then averaged)\n") ;
+		fprintf( stdout, "\n") ;
+		fprintf( stdout, "\t-rot_angle_tilt_plane <rot_angle_tilt_plane>\trotation angle of tilting plane [deg], default 0.0 [deg]\n") ;
+		fprintf( stdout, "\t-det_tilt_angle <det_tilt_angle>\t\tangle of detector tilt in plane [deg], default 0.0 [deg]\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-abs_units <cf d T t (cf_b d_b T_b t_b)>\tabsolute units calibration applied for all images in file_list\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\twhere:\n") ;
@@ -884,6 +899,10 @@ class fit2dcorr
 		azi_end = azi_end_def ; /* av == 0 & 2 */
 
 		rad_st = rad_st_def ; /* av == 0 & 2 */
+
+		/* non-orthogonality of detector */
+		rot_angle_tilt_plane = rot_angle_tilt_plane_def ;
+		det_tilt_angle = det_tilt_angle_def ;
 
 		/* values to be defined by the user */
 		/* mandatory */
@@ -1148,6 +1167,14 @@ class fit2dcorr
 						else if ( !strcmp( varg[i], "-cf_b_is_i0") )
 						{
 							cf_b_is_i0 = true ;
+						}
+						else { fit2dcorr_error(3) ; }
+						break ;
+					case 'd':
+						if ( !strcmp( varg[i], "-det_tilt_angle") )
+						{
+							if ( is_numeric(varg[i]) ) { det_tilt_angle = strtod( varg[i], NULL) ; }
+							else { fit2dcorr_error(2) ; }
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
@@ -1439,6 +1466,11 @@ class fit2dcorr
 							}
 							else { fit2dcorr_error(1) ; }
 							break;
+						}
+						else if ( !strcmp( varg[i], "-rot_angle_tilt_plane") )
+						{
+							if ( is_numeric(varg[i]) ) { rot_angle_tilt_plane = strtod( varg[i], NULL) ; }
+							else { fit2dcorr_error(2) ; }
 						}
 						else { fit2dcorr_error(3) ; }
 						break ;
@@ -1815,9 +1847,11 @@ class fit2dcorr
 		}
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\tmask=%s\n", maskfile.c_str()) ;
-		fprintf( stdout, "\tbc=(%-.1lf, %-.1lf) [pix]\n", bc[0], bc[1]) ;
-		fprintf( stdout, "\tsdd=%-.1lf [mm]\n", sdd) ;
-		fprintf( stdout, "\tlambda=%-.4lf [Angstroem]\n", lambda) ;
+		fprintf( stdout, "\tbc=(%-.3lf, %-.3lf) [pix]\n", bc[0], bc[1]) ;
+		fprintf( stdout, "\tsdd=%-.3lf [mm]\n", sdd) ;
+		fprintf( stdout, "\tdet_tilt_angle=%-.3lf [deg]\n", det_tilt_angle) ;
+		fprintf( stdout, "\trot_angle_tilt_plane=%-.3lf [deg]\n", rot_angle_tilt_plane) ;
+		fprintf( stdout, "\tlambda=%-.6lf [Angstroem]\n", lambda) ;
 		fprintf( stdout, "\tpix_size=%-.1lf x %-.1lf [microns x microns]\n", pix_size[0], pix_size[1]) ;
 		fprintf( stdout, "\n") ;
 
@@ -1898,6 +1932,9 @@ class fit2dcorr
 
 
 		/* radial stuff: pix_x_r_out, pix_y_r_out, rad_st, rad_end, rad_bins, max_2theta, min_Q, max_Q */
+
+		/* !!! WARNING: some of the radial stuff below might only work properly for orthogonal detector setups !!! i.e. with tilt angles 0.0 */
+
 
 		/* determine automatically rad_max [pix] by checking check all four corners with respect to the beamcenter */
 		/* start with southwest corner */
@@ -2077,7 +2114,7 @@ class fit2dcorr
 		/*
 			now all of the following class-wide variables are set either with default values, by input or are derived automatically
 
-			sdd [mm], lambda [Å], bc[2] [pix], pix_size[2] [µm], maskfile, file_list
+			sdd [mm], bc[2] [pix], det_tilt_angle [deg], rot_angle_tilt_plane [deg], pix_size[2] [µm], lambda [Å], maskfile, file_list
 			macrofile, array_size[2] [-]
 			
 			azi_st [deg], azi_end [deg], azi_bins [-]
@@ -2449,7 +2486,7 @@ class fit2dcorr
 
 
 		/* store common part in sdummy */
- 		sprintf( sdummy,"%s %skey %sdim%ux%u %sfvar#SDD=%-.1lf %sfvar#LAMBDA=%-.4lf %sfvar#BCX=%-.1lf %sfvar#BCY=%-.1lf %sfvar#PIXSZ_X=%-.1lf %sfvar#PIXSZ_Y=%-.1lf %sfvar#POL_FAC=%-.3lf %ssvar#MASK=%s %ssvar#CONSERVINT=%s %ssvar#FILE_IN=%%s %ssvar#FILE_OUT=%%s", fit2dfile.c_str(), cmdbind.c_str(), cmdbind.c_str(), array_size[0], array_size[1], cmdbind.c_str(), sdd, cmdbind.c_str(), lambda, cmdbind.c_str(), bc[0], cmdbind.c_str(), bc[1], cmdbind.c_str(), pix_size[0], cmdbind.c_str(), pix_size[1], cmdbind.c_str(), pol_fac, cmdbind.c_str(), maskfile.c_str(), cmdbind.c_str(), strconservint.c_str(), cmdbind.c_str(), cmdbind.c_str()) ;
+ 		sprintf( sdummy,"%s %skey %sdim%ux%u %sfvar#SDD=%-.3lf %sfvar#LAMBDA=%-.6lf %sfvar#BCX=%-.3lf %sfvar#BCY=%-.3lf %sfvar#ROTTILTPLANE=%-.3lf %sfvar#DETTILT=%-.3lf %sfvar#PIXSZ_X=%-.1lf %sfvar#PIXSZ_Y=%-.1lf %sfvar#POL_FAC=%-.3lf %ssvar#MASK=%s %ssvar#CONSERVINT=%s %ssvar#FILE_IN=%%s %ssvar#FILE_OUT=%%s", fit2dfile.c_str(), cmdbind.c_str(), cmdbind.c_str(), array_size[0], array_size[1], cmdbind.c_str(), sdd, cmdbind.c_str(), lambda, cmdbind.c_str(), bc[0], cmdbind.c_str(), bc[1], cmdbind.c_str(), pix_size[0], cmdbind.c_str(), pix_size[1], cmdbind.c_str(), rot_angle_tilt_plane, cmdbind.c_str(), det_tilt_angle, cmdbind.c_str(), pol_fac, cmdbind.c_str(), maskfile.c_str(), cmdbind.c_str(), strconservint.c_str(), cmdbind.c_str(), cmdbind.c_str()) ;
 
 		/* define individual part in sdummy2 for the different av modes */
 		if ( av == 1 )
@@ -2686,11 +2723,13 @@ class fit2dcorr
 				fprintf( file, "%s macrofile=%s\n", presp.c_str(), macrofile.c_str()) ;
 				fprintf( file, "%s\n", presp.c_str()) ;
 				fprintf( file, "%s mask=%s\n", presp.c_str(), maskfile.c_str()) ;
-				fprintf( file, "%s bcx=%-.1lf [pix]\n", presp.c_str(), bc[0]) ;
-				fprintf( file, "%s bcy=%-.1lf [pix]\n", presp.c_str(), bc[1]) ;
-				fprintf( file, "%s sdd=%-.1lf [mm]\n", presp.c_str(), sdd) ;
-				fprintf( file, "%s lambda=%-.4lf [Angstroem]\n", presp.c_str(), lambda) ;
+				fprintf( file, "%s bcx=%-.3lf [pix]\n", presp.c_str(), bc[0]) ;
+				fprintf( file, "%s bcy=%-.3lf [pix]\n", presp.c_str(), bc[1]) ;
+				fprintf( file, "%s sdd=%-.3lf [mm]\n", presp.c_str(), sdd) ;
+				fprintf( file, "%s det_tilt_angle=%-.3lf [deg]\n", presp.c_str(), det_tilt_angle) ;
+				fprintf( file, "%s rot_angle_tilt_plane=%-.3lf [deg]\n", presp.c_str(), rot_angle_tilt_plane) ;
 				fprintf( file, "%s pix_size=%-.1lf x %-.1lf [microns x microns]\n", presp.c_str(), pix_size[0], pix_size[1]) ;
+				fprintf( file, "%s lambda=%-.6lf [Angstroem]\n", presp.c_str(), lambda) ;
 				fprintf( file, "%s array_size=%d x %d [pix x pix]\n", presp.c_str(), array_size[0], array_size[1]) ;
 
 				fprintf( file, "%s pix_x_r_out=%-.1lf [pix]\n", presp.c_str(), pix_x_r_out) ;
@@ -3068,12 +3107,13 @@ class fit2dcorr
 				fprintf( file, "%s macrofile=%s\n", presp.c_str(), macrofile.c_str()) ;
 				fprintf( file, "%s\n", presp.c_str()) ;
 				fprintf( file, "%s mask=%s\n", presp.c_str(), maskfile.c_str()) ;
-				fprintf( file, "%s bcx=%-.1lf [pix]\n", presp.c_str(), bc[0]) ;
-				fprintf( file, "%s bcy=%-.1lf [pix]\n", presp.c_str(), bc[1]) ;
-				fprintf( file, "%s sdd=%-.1lf [mm]\n", presp.c_str(), sdd) ;
-				fprintf( file, "%s lambda=%-.4lf [Angstroem]\n", presp.c_str(), lambda) ;
-
+				fprintf( file, "%s bcx=%-.3lf [pix]\n", presp.c_str(), bc[0]) ;
+				fprintf( file, "%s bcy=%-.3lf [pix]\n", presp.c_str(), bc[1]) ;
+				fprintf( file, "%s sdd=%-.3lf [mm]\n", presp.c_str(), sdd) ;
+				fprintf( file, "%s det_tilt_angle=%-.3lf [deg]\n", presp.c_str(), det_tilt_angle) ;
+				fprintf( file, "%s rot_angle_tilt_plane=%-.3lf [deg]\n", presp.c_str(), rot_angle_tilt_plane) ;
 				fprintf( file, "%s pix_size=%-.1lf x %-.1lf [microns x microns]\n", presp.c_str(), pix_size[0], pix_size[1]) ;
+				fprintf( file, "%s lambda=%-.6lf [Angstroem]\n", presp.c_str(), lambda) ;
 				fprintf( file, "%s array_size=%d x %d [pix x pix]\n", presp.c_str(), array_size[0], array_size[1]) ;
 
 				fprintf( file, "%s pix_x_r_out=%-.1lf [pix]\n", presp.c_str(), pix_x_r_out) ;
