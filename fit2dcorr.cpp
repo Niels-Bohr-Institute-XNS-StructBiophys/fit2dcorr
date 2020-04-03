@@ -536,7 +536,7 @@ class fit2dcorr
 				-cf_is_i0					CF value for sample files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
 				-cf_b_is_i0					CF value for backgr files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF
 
-				-qscale <Qscale>				Q_nm-1 for "Q [1/nm]" (default), Q_A-1 for "Q [1/A]", s_nm-1 for "s [1/nm]", s_A-1 for "s [1/A]"
+				-qscale <Qscale>				Q_nm-1 / Q_nm^-1 / q_nm-1 / q_nm^-1 for "Q [1/nm]" (default), Q_A-1 etc for "Q [1/A]", s_nm-1 / s_nm^-1 for "s [1/nm]", s_A-1 / s_A^-1 for "s [1/A]"
 
 				-l <ranges>					list(s) of lines to skip in all averaged files, multiple instances are possible !
 										comma separated lists and / or range specifications possible
@@ -706,7 +706,7 @@ class fit2dcorr
 		fprintf( stdout, "\t-cf_is_i0\t\t\t\t\tCF value for sample files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF\n") ;
 		fprintf( stdout, "\t-cf_b_is_i0\t\t\t\t\tCF value for backgr files in -abs_units option is I0 and not CF, thus scaling must be applied from I0 to CF\n") ;
 		fprintf( stdout, "\n") ;
-		fprintf( stdout, "\t-qscale <Qscale>\t\t\t\tQ_nm-1 for \"Q [1/nm]\" (default), Q_A-1 for \"Q [1/A]\", s_nm-1 for \"s [1/nm]\", s_A-1 for \"s [1/A]\"\n") ;
+		fprintf( stdout, "\t-qscale <Qscale>\t\t\t\tQ_nm-1 / Q_nm^-1 / q_nm-1 / q_nm^-1 for \"Q [1/nm]\" (default), Q_A-1 etc for \"Q [1/A]\", s_nm-1 / s_nm^-1 for \"s [1/nm]\", s_A-1 / s_A^-1 for \"s [1/A]\"\n") ;
 		fprintf( stdout, "\n") ;
 		fprintf( stdout, "\t-l <ranges>\t\t\t\t\tlist(s) of lines to skip in all averaged files, multiple instances are possible !\n") ;
 		fprintf( stdout, "\t\t\t\t\t\t\tcomma separated lists and / or range specifications possible\n") ;
@@ -1906,12 +1906,20 @@ class fit2dcorr
 
 		/* x_scale labeling and define qscale scaling factor */
 		if ( x_scale.compare("Q_nm-1") == 0 ) { x_scale = "Q [1/nm]" ; x_scale_fac = 1.0 ; }
+		else if ( x_scale.compare("Q_nm^-1") == 0 ) { x_scale = "Q [1/nm]" ; x_scale_fac = 1.0 ; }
+		else if ( x_scale.compare("q_nm-1") == 0 ) { x_scale = "Q [1/nm]" ; x_scale_fac = 1.0 ; }
+		else if ( x_scale.compare("q_nm^-1") == 0 ) { x_scale = "Q [1/nm]" ; x_scale_fac = 1.0 ; }
 		else if ( x_scale.compare("Q_A-1") == 0 ) { x_scale = " Q [1/A]" ; x_scale_fac = 0.1 ; }
+		else if ( x_scale.compare("Q_A^-1") == 0 ) { x_scale = " Q [1/A]" ; x_scale_fac = 0.1 ; }
+		else if ( x_scale.compare("q_A-1") == 0 ) { x_scale = " Q [1/A]" ; x_scale_fac = 0.1 ; }
+		else if ( x_scale.compare("q_A^-1") == 0 ) { x_scale = " Q [1/A]" ; x_scale_fac = 0.1 ; }
 		else if ( x_scale.compare("s_nm-1") == 0 ) { x_scale = "s [1/nm]" ; x_scale_fac = 1.0 / ( 2.0 * M_PI ) ; }
+		else if ( x_scale.compare("s_nm^-1") == 0 ) { x_scale = "s [1/nm]" ; x_scale_fac = 1.0 / ( 2.0 * M_PI ) ; }
 		else if ( x_scale.compare("s_A-1") == 0 ) { x_scale = " s [1/A]" ; x_scale_fac = 0.1 / ( 2.0 * M_PI ) ; }
+		else if ( x_scale.compare("s_A^-1") == 0 ) { x_scale = " s [1/A]" ; x_scale_fac = 0.1 / ( 2.0 * M_PI ) ; }
 		else
 		{
-			fprintf( stdout, "Error: valid arguments for -qscale option are: Q_nm-1 (default), Q_A-1, s_nm-1, s_A-1. Exit.\n") ;
+			fprintf( stdout, "Error: valid arguments for -qscale option are: Q_nm-1 (default), Q_nm^-1, q_nm-1, q_nm^-1, Q_A-1, Q_A^-1, q_A-1, q_A^-1, s_nm-1, s_nm^-1, s_A-1 and s_A^-1. Exit.\n") ;
 			exit(1) ;
 		}
 
